@@ -1,0 +1,377 @@
+"use client"
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react"
+
+type Locale = "en" | "ur"
+
+interface TranslationObject {
+  [key: string]: string | TranslationObject
+}
+
+type TranslationValue = string | TranslationObject
+
+const STORAGE_KEY = "padosi_locale"
+
+const translations: Record<Locale, Record<string, TranslationValue>> = {
+  en: {
+    common: {
+      english: "English",
+      urdu: "Urdu",
+      light: "Light",
+      dark: "Dark",
+    },
+    header: {
+      communities: "Communities",
+      createCommunity: "Create Community",
+      adminPortal: "Admin Portal",
+      logout: "Logout",
+      switchToLight: "Switch to light mode",
+      switchToDark: "Switch to dark mode",
+    },
+    loginPage: {
+      superAdminPortal: "Super Admin Portal",
+    },
+    login: {
+      signInToAccount: "Sign in to your account",
+      emailAddress: "Email Address",
+      emailPlaceholder: "admin@padosi.app",
+      password: "Password",
+      passwordPlaceholder: "Enter your password",
+      signIn: "Sign In",
+      signingIn: "Signing in...",
+      emailRequired: "Email is required",
+      emailInvalid: "Please enter a valid email address",
+      passwordRequired: "Password is required",
+      passwordMax: "Password must be 15 characters or less",
+      loginSuccess: "Login successful",
+      loginFailed: "Login failed. Please try again.",
+      hidePassword: "Hide password",
+      showPassword: "Show password",
+    },
+    communities: {
+      superAdmin: "Super Admin",
+      title: "Communities",
+      subtitle: "Manage and view all Padosi communities",
+      newCommunity: "New Community",
+      filterAll: "All",
+      filterActive: "Active",
+      filterInactive: "Inactive",
+      shortcutsHint: "Tip: Press / to search, G for grid, L for list",
+      copyCode: "Copy code",
+      copiedCode: "Code copied",
+      copyFailed: "Failed to copy code",
+      gridView: "Grid",
+      listView: "List",
+      totalCommunities: "Total Communities",
+      active: "Active",
+      inactive: "Inactive",
+      listName: "Name",
+      listMembers: "Members",
+      listUnits: "Units",
+      listCode: "Code",
+      searchPlaceholder: "Search communities...",
+      searchAria: "Search communities",
+      noCommunitiesFound: "No communities found",
+      tryAdjustingSearch: "Try adjusting your search terms",
+      getStartedFirst: "Get started by creating your first community",
+      createCommunity: "Create Community",
+      loading: "Loading...",
+      loadMore: "Load More",
+      code: "Code",
+      members: "members",
+      units: "units",
+      more: "more",
+      fetchFailed: "Failed to fetch communities",
+    },
+    createCommunity: {
+      backToCommunities: "Back to communities",
+      title: "Create Community",
+      subtitle: "Add a new community and assign an admin",
+      communityDetails: "Community Details",
+      basicInfo: "Basic information about the community",
+      communityName: "Community Name",
+      communityNamePlaceholder: "Enter community name",
+      description: "Description",
+      descriptionPlaceholder: "Describe the community",
+      totalUnits: "Total Units",
+      totalUnitsPlaceholder: "e.g. 50",
+      city: "City",
+      cityPlaceholder: "Enter city",
+      address: "Address",
+      addressPlaceholder: "Full address",
+      adminDetails: "Admin Details",
+      assignAdmin: "Assign an administrator for this community",
+      adminName: "Admin Name",
+      adminNamePlaceholder: "Full name",
+      adminEmail: "Admin Email",
+      adminEmailPlaceholder: "admin@example.com",
+      adminHousePlot: "House/Plot Number",
+      adminHousePlotPlaceholder: "e.g. 129-A",
+      adminPhoneNumber: "Phone Number",
+      adminPhonePlaceholder: "03452334561",
+      adminPicture: "Admin Picture",
+      adminPictureHint: "PNG, JPEG, JPG, or WEBP. Max 5MB.",
+      uploadPicture: "Upload Picture",
+      uploading: "Uploading...",
+      uploadedSuccessfully: "Uploaded successfully",
+      removePicture: "Remove picture",
+      uploadAria: "Upload admin picture",
+      cancel: "Cancel",
+      creating: "Creating...",
+      createCommunity: "Create Community",
+      progressTitle: "Form Progress",
+      progressSubtitle: "Complete required fields before submitting",
+      fieldsCompleted: "{count} of {total} required fields completed",
+      readyToSubmit: "Ready to submit",
+      keepGoing: "Keep going",
+      communityCreated: "Community created successfully!",
+      createFailed: "Failed to create community",
+      mustBeLoggedInCreate: "You must be logged in to create a community",
+      waitForUpload: "Please wait for image upload to complete",
+      pictureUploaded: "Admin picture uploaded",
+      pictureUploadFailed: "Failed to upload admin picture",
+      pictureInvalidType: "Only PNG, JPEG, JPG, and WEBP files are accepted",
+      pictureMaxSize: "File size must be less than 5MB",
+      pictureLoginRequired: "You must be logged in to upload an admin picture",
+      validationCommunityName: "Community name is required",
+      validationCommunityNameFormat: "Community name can contain only alphabets, spaces, and dashes",
+      validationCommunityNameMax: "Community name must be 100 characters or less",
+      validationDescription: "Description is required",
+      validationDescriptionMax: "Description must be 500 characters or less",
+      validationTotalUnitsRequired: "Total units is required",
+      validationTotalUnitsDigits: "Total units must contain digits only",
+      validationTotalUnitsInvalid: "Must be a valid positive number",
+      validationAddress: "Address is required",
+      validationCity: "City is required",
+      validationAdminName: "Admin name is required",
+      validationAdminEmailRequired: "Admin email is required",
+      validationAdminEmailInvalid: "Please enter a valid email address",
+      validationHousePlot: "House/Plot number is required",
+      validationPhone: "Phone number is required",
+      validationPhoneInvalid: "Phone number must start with 03 and be exactly 11 digits",
+    },
+  },
+  ur: {
+    common: {
+      english: "انگریزی",
+      urdu: "اردو",
+      light: "لائٹ",
+      dark: "ڈارک",
+    },
+    header: {
+      communities: "کمیونٹیز",
+      createCommunity: "کمیونٹی بنائیں",
+      adminPortal: "ایڈمن پورٹل",
+      logout: "لاگ آؤٹ",
+      switchToLight: "لائٹ موڈ میں جائیں",
+      switchToDark: "ڈارک موڈ میں جائیں",
+    },
+    loginPage: {
+      superAdminPortal: "سپر ایڈمن پورٹل",
+    },
+    login: {
+      signInToAccount: "اپنے اکاؤنٹ میں سائن اِن کریں",
+      emailAddress: "ای میل ایڈریس",
+      emailPlaceholder: "admin@padosi.app",
+      password: "پاس ورڈ",
+      passwordPlaceholder: "اپنا پاس ورڈ درج کریں",
+      signIn: "سائن اِن",
+      signingIn: "سائن اِن ہو رہا ہے...",
+      emailRequired: "ای میل ضروری ہے",
+      emailInvalid: "درست ای میل ایڈریس درج کریں",
+      passwordRequired: "پاس ورڈ ضروری ہے",
+      passwordMax: "پاس ورڈ 15 حروف سے کم ہونا چاہیے",
+      loginSuccess: "لاگ اِن کامیاب",
+      loginFailed: "لاگ اِن ناکام، دوبارہ کوشش کریں۔",
+      hidePassword: "پاس ورڈ چھپائیں",
+      showPassword: "پاس ورڈ دکھائیں",
+    },
+    communities: {
+      superAdmin: "سپر ایڈمن",
+      title: "کمیونٹیز",
+      subtitle: "تمام Padosi کمیونٹیز کو دیکھیں اور مینیج کریں",
+      newCommunity: "نئی کمیونٹی",
+      filterAll: "سب",
+      filterActive: "فعال",
+      filterInactive: "غیر فعال",
+      shortcutsHint: "اشارہ: تلاش کے لیے / ، گرڈ کے لیے G، فہرست کے لیے L دبائیں",
+      copyCode: "کوڈ کاپی کریں",
+      copiedCode: "کوڈ کاپی ہو گیا",
+      copyFailed: "کوڈ کاپی نہیں ہو سکا",
+      gridView: "گرڈ",
+      listView: "فہرست",
+      totalCommunities: "کل کمیونٹیز",
+      active: "فعال",
+      inactive: "غیر فعال",
+      listName: "نام",
+      listMembers: "اراکین",
+      listUnits: "یونٹس",
+      listCode: "کوڈ",
+      searchPlaceholder: "کمیونٹیز تلاش کریں...",
+      searchAria: "کمیونٹیز تلاش کریں",
+      noCommunitiesFound: "کوئی کمیونٹی نہیں ملی",
+      tryAdjustingSearch: "اپنے تلاش کے الفاظ تبدیل کریں",
+      getStartedFirst: "پہلی کمیونٹی بنا کر آغاز کریں",
+      createCommunity: "کمیونٹی بنائیں",
+      loading: "لوڈ ہو رہا ہے...",
+      loadMore: "مزید دکھائیں",
+      code: "کوڈ",
+      members: "اراکین",
+      units: "یونٹس",
+      more: "مزید",
+      fetchFailed: "کمیونٹیز حاصل نہیں ہو سکیں",
+    },
+    createCommunity: {
+      backToCommunities: "کمیونٹیز پر واپس جائیں",
+      title: "کمیونٹی بنائیں",
+      subtitle: "نئی کمیونٹی شامل کریں اور ایڈمن مقرر کریں",
+      communityDetails: "کمیونٹی کی تفصیل",
+      basicInfo: "کمیونٹی کی بنیادی معلومات",
+      communityName: "کمیونٹی کا نام",
+      communityNamePlaceholder: "کمیونٹی کا نام درج کریں",
+      description: "تفصیل",
+      descriptionPlaceholder: "کمیونٹی کی تفصیل لکھیں",
+      totalUnits: "کل یونٹس",
+      totalUnitsPlaceholder: "مثال: 50",
+      city: "شہر",
+      cityPlaceholder: "شہر درج کریں",
+      address: "پتہ",
+      addressPlaceholder: "مکمل پتہ",
+      adminDetails: "ایڈمن کی تفصیل",
+      assignAdmin: "اس کمیونٹی کے لیے ایڈمن مقرر کریں",
+      adminName: "ایڈمن کا نام",
+      adminNamePlaceholder: "پورا نام",
+      adminEmail: "ایڈمن ای میل",
+      adminEmailPlaceholder: "admin@example.com",
+      adminHousePlot: "گھر/پلاٹ نمبر",
+      adminHousePlotPlaceholder: "مثال: 129-A",
+      adminPhoneNumber: "فون نمبر",
+      adminPhonePlaceholder: "03452334561",
+      adminPicture: "ایڈمن تصویر",
+      adminPictureHint: "PNG، JPEG، JPG یا WEBP۔ زیادہ سے زیادہ 5MB۔",
+      uploadPicture: "تصویر اپ لوڈ کریں",
+      uploading: "اپ لوڈ ہو رہی ہے...",
+      uploadedSuccessfully: "کامیابی سے اپ لوڈ ہو گئی",
+      removePicture: "تصویر ہٹائیں",
+      uploadAria: "ایڈمن تصویر اپ لوڈ کریں",
+      cancel: "منسوخ",
+      creating: "بن رہی ہے...",
+      createCommunity: "کمیونٹی بنائیں",
+      progressTitle: "فارم کی پیش رفت",
+      progressSubtitle: "جمع کرانے سے پہلے لازمی خانے مکمل کریں",
+      fieldsCompleted: "{total} میں سے {count} لازمی خانے مکمل",
+      readyToSubmit: "جمع کرانے کے لیے تیار",
+      keepGoing: "جاری رکھیں",
+      communityCreated: "کمیونٹی کامیابی سے بن گئی!",
+      createFailed: "کمیونٹی نہیں بن سکی",
+      mustBeLoggedInCreate: "کمیونٹی بنانے کے لیے لاگ اِن ہونا ضروری ہے",
+      waitForUpload: "براہِ کرم تصویر اپ لوڈ مکمل ہونے کا انتظار کریں",
+      pictureUploaded: "ایڈمن تصویر اپ لوڈ ہو گئی",
+      pictureUploadFailed: "ایڈمن تصویر اپ لوڈ نہیں ہو سکی",
+      pictureInvalidType: "صرف PNG، JPEG، JPG، اور WEBP فائلز قبول ہیں",
+      pictureMaxSize: "فائل سائز 5MB سے کم ہونا چاہیے",
+      pictureLoginRequired: "تصویر اپ لوڈ کرنے کے لیے لاگ اِن ہونا ضروری ہے",
+      validationCommunityName: "کمیونٹی کا نام ضروری ہے",
+      validationCommunityNameFormat: "کمیونٹی کے نام میں صرف حروف، اسپیس اور ڈیش ہو سکتے ہیں",
+      validationCommunityNameMax: "کمیونٹی کا نام زیادہ سے زیادہ 100 حروف ہو سکتا ہے",
+      validationDescription: "تفصیل ضروری ہے",
+      validationDescriptionMax: "تفصیل زیادہ سے زیادہ 500 حروف ہو سکتی ہے",
+      validationTotalUnitsRequired: "کل یونٹس ضروری ہیں",
+      validationTotalUnitsDigits: "کل یونٹس میں صرف ہندسے ہونے چاہئیں",
+      validationTotalUnitsInvalid: "درست مثبت نمبر درج کریں",
+      validationAddress: "پتہ ضروری ہے",
+      validationCity: "شہر ضروری ہے",
+      validationAdminName: "ایڈمن کا نام ضروری ہے",
+      validationAdminEmailRequired: "ایڈمن ای میل ضروری ہے",
+      validationAdminEmailInvalid: "درست ای میل ایڈریس درج کریں",
+      validationHousePlot: "گھر/پلاٹ نمبر ضروری ہے",
+      validationPhone: "فون نمبر ضروری ہے",
+      validationPhoneInvalid: "فون نمبر 03 سے شروع ہو اور بالکل 11 ہندسوں پر مشتمل ہو",
+    },
+  },
+}
+
+interface LocaleContextType {
+  locale: Locale
+  isRTL: boolean
+  setLocale: (locale: Locale) => void
+  t: (key: string, params?: Record<string, string | number>) => string
+}
+
+const LocaleContext = createContext<LocaleContextType | undefined>(undefined)
+
+function resolveTranslation(locale: Locale, key: string): string | undefined {
+  const parts = key.split(".")
+  let value: TranslationValue | undefined = translations[locale]
+
+  for (const part of parts) {
+    if (!value || typeof value === "string") return undefined
+    value = value[part]
+  }
+
+  return typeof value === "string" ? value : undefined
+}
+
+function interpolate(template: string, params?: Record<string, string | number>): string {
+  if (!params) return template
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(params[key] ?? `{${key}}`))
+}
+
+export function LocaleProvider({ children }: { children: ReactNode }) {
+  const [locale, setLocaleState] = useState<Locale>("en")
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored === "en" || stored === "ur") {
+      setLocaleState(stored)
+    }
+    setMounted(true)
+  }, [])
+
+  const setLocale = useCallback((nextLocale: Locale) => {
+    setLocaleState(nextLocale)
+    localStorage.setItem(STORAGE_KEY, nextLocale)
+  }, [])
+
+  useEffect(() => {
+    if (!mounted) return
+    const html = document.documentElement
+    const isRTL = locale === "ur"
+    html.lang = locale
+    html.dir = isRTL ? "rtl" : "ltr"
+    html.classList.toggle("rtl", isRTL)
+  }, [locale, mounted])
+
+  const value = useMemo<LocaleContextType>(
+    () => ({
+      locale,
+      isRTL: locale === "ur",
+      setLocale,
+      t: (key, params) => {
+        const localized = resolveTranslation(locale, key) ?? resolveTranslation("en", key) ?? key
+        return interpolate(localized, params)
+      },
+    }),
+    [locale, setLocale],
+  )
+
+  if (!mounted) return null
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
+}
+
+export function useLocale() {
+  const context = useContext(LocaleContext)
+  if (!context) {
+    throw new Error("useLocale must be used within LocaleProvider")
+  }
+  return context
+}
