@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ValidationMessage } from "@/components/ui/validation-message"
 import { useAuth } from "@/lib/auth-context"
-import { createCommunity, getPreSignUrl, uploadFileToPresignUrl } from "@/lib/api"
+import { createCommunity, deleteFileByName, getPreSignUrl, uploadFileToPresignUrl } from "@/lib/api"
 import { useLocale } from "@/lib/locale-context"
 import { cn } from "@/lib/utils"
 
@@ -156,7 +156,15 @@ export function CommunityCreateForm() {
     }
   }
 
-  function removePicture() {
+  async function removePicture() {
+    if (adminPictureKey && tokens?.accessToken) {
+      try {
+        await deleteFileByName(adminPictureKey, tokens.accessToken)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : t("createCommunity.pictureUploadFailed")
+        toast.error(message)
+      }
+    }
     setAdminPicture(null)
     setAdminPictureKey("")
     setPicturePreview(null)
@@ -529,7 +537,7 @@ export function CommunityCreateForm() {
                       <div className="flex h-full w-full items-center justify-center p-2">
                         <img
                           src={picturePreview || "/placeholder.svg"}
-                          alt="Admin picture preview"
+                          alt={t("createCommunity.adminPicturePreviewAlt")}
                           className="max-h-full max-w-full object-contain"
                         />
                       </div>
@@ -546,7 +554,7 @@ export function CommunityCreateForm() {
                         </button>
                         <button
                           type="button"
-                          onClick={removePicture}
+                          onClick={() => void removePicture()}
                           className="flex h-8 w-8 items-center justify-center rounded-full border border-white/35 bg-black/40 text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-destructive"
                           aria-label={t("createCommunity.removePicture")}
                         >
