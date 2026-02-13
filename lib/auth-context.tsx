@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
+import { AUTH_STATE_COOKIE, AUTH_STORAGE_KEY } from "@/lib/auth-constants"
+import { setRefreshToken } from "@/lib/api"
 
 interface AuthTokens {
   accessToken: string
@@ -20,7 +22,21 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const STORAGE_KEY = "padosi_auth_tokens"
+interface StoredAuthSession {
+  accessToken: string
+  accessTokenExpiresAt: string
+  refreshTokenExpiresAt: string
+}
+
+function writeAuthStateCookie() {
+  if (typeof document === "undefined") return
+  document.cookie = `${AUTH_STATE_COOKIE}=1; Path=/; SameSite=Lax`
+}
+
+function clearAuthStateCookie() {
+  if (typeof document === "undefined") return
+  document.cookie = `${AUTH_STATE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [tokens, setTokens] = useState<AuthTokens | null>(null)
@@ -30,12 +46,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      const stored = sessionStorage.getItem(STORAGE_KEY)
+      const stored = sessionStorage.getItem(AUTH_STORAGE_KEY)
       if (stored) {
-        setTokens(JSON.parse(stored))
+        const parsed = JSON.parse(stored) as Partial<StoredAuthSession>
+        if (typeof parsed.accessToken === "string" && parsed.accessToken.trim()) {
+          setTokens({
+            accessToken: parsed.accessToken,
+            accessTokenExpiresAt: typeof parsed.accessTokenExpiresAt === "string" ? parsed.accessTokenExpiresAt : "",
+            refreshTokenExpiresAt: typeof parsed.refreshTokenExpiresAt === "string" ? parsed.refreshTokenExpiresAt : "",
+            // Refresh token is intentionally not persisted.
+            refreshToken: "",
+          })
+          writeAuthStateCookie()
+        }
       }
     } catch {
-      sessionStorage.removeItem(STORAGE_KEY)
+      sessionStorage.removeItem(AUTH_STORAGE_KEY)
     }
     setMounted(true)
 
@@ -48,7 +74,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const onForceLogout = () => {
       setTokens(null)
-      sessionStorage.removeItem(STORAGE_KEY)
+      setRefreshToken(null)
+      clearAuthStateCookie()
+      sessionStorage.removeItem(AUTH_STORAGE_KEY)
       setIsLoggingOut(false)
       router.push("/login")
     }
@@ -63,7 +91,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback((newTokens: AuthTokens) => {
     setTokens(newTokens)
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(newTokens))
+    setRefreshToken(newTokens.refreshToken)
+    sessionStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({
+        accessToken: newTokens.accessToken,
+        accessTokenExpiresAt: newTokens.accessTokenExpiresAt,
+        refreshTokenExpiresAt: newTokens.refreshTokenExpiresAt,
+      } satisfies StoredAuthSession),
+    )
+    writeAuthStateCookie()
   }, [])
 
   const logout = useCallback(async () => {
@@ -71,7 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Clear local auth state and route to login.
     await new Promise((r) => setTimeout(r, 300))
     setTokens(null)
-    sessionStorage.removeItem(STORAGE_KEY)
+    setRefreshToken(null)
+    clearAuthStateCookie()
+    sessionStorage.removeItem(AUTH_STORAGE_KEY)
     setIsLoggingOut(false)
     router.push("/login")
   }, [router])
