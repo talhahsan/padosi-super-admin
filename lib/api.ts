@@ -7,7 +7,10 @@ function requireEnv(value: string | undefined, name: string): string {
   return value
 }
 
-const API_BASE_URL = requireEnv(process.env.NEXT_PUBLIC_API_BASE_URL, "NEXT_PUBLIC_API_BASE_URL")
+const USE_API_PROXY = process.env.NEXT_PUBLIC_USE_API_PROXY === "true"
+const API_BASE_URL = USE_API_PROXY
+  ? "/api/proxy"
+  : requireEnv(process.env.NEXT_PUBLIC_API_BASE_URL, "NEXT_PUBLIC_API_BASE_URL")
 const ADMIN_LOGIN_PATH = process.env.NEXT_PUBLIC_ADMIN_LOGIN_PATH || "/auth/login-admin"
 const REFRESH_TOKEN_PATH = process.env.NEXT_PUBLIC_ADMIN_REFRESH_PATH || "/auth/refresh-token"
 
