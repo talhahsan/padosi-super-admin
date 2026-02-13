@@ -21,12 +21,14 @@ export function DashboardHeader() {
   const navLinks = [
     { href: "/communities", label: t("header.communities") },
     { href: "/communities/create", label: t("header.createCommunity") },
+    { href: "/communities/create-without-admin", label: "Create Without Admin" },
   ]
 
   function isLinkActive(href: string) {
     if (href === "/communities/create") return pathname === href
+    if (href === "/communities/create-without-admin") return pathname === href
     if (href === "/communities") {
-      return pathname === href || pathname.startsWith("/communities/")
+      return pathname === href || (pathname.startsWith("/communities/") && !pathname.startsWith("/communities/create"))
     }
     return pathname === href
   }
