@@ -1,14 +1,13 @@
 import { AUTH_STORAGE_KEY } from "@/lib/auth-constants"
 
-function requireEnv(name: string): string {
-  const value = process.env[name]
+function requireEnv(value: string | undefined, name: string): string {
   if (!value) {
     throw new Error(`Missing ${name} environment variable`)
   }
   return value
 }
 
-const API_BASE_URL = requireEnv("NEXT_PUBLIC_API_BASE_URL")
+const API_BASE_URL = requireEnv(process.env.NEXT_PUBLIC_API_BASE_URL, "NEXT_PUBLIC_API_BASE_URL")
 const ADMIN_LOGIN_PATH = process.env.NEXT_PUBLIC_ADMIN_LOGIN_PATH || "/auth/login-admin"
 const REFRESH_TOKEN_PATH = process.env.NEXT_PUBLIC_ADMIN_REFRESH_PATH || "/auth/refresh-token"
 
