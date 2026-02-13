@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from "@/lib/auth-context"
+import { AUTH_STORAGE_KEY } from "@/lib/auth-constants"
 import { fetchCommunityCount, type Community, type CommunityCountData } from "@/lib/api"
 import { getInitials, getMemberOverflow } from "@/lib/community-utils"
 import { useLocale } from "@/lib/locale-context"
@@ -22,7 +23,6 @@ import { useCommunities } from "@/hooks/use-communities"
 const LIMIT = 12
 const COMMUNITY_COUNT_CACHE_KEY = "padosi_community_count"
 const COMMUNITY_DETAILS_CACHE_KEY = "padosi_selected_community"
-const AUTH_TOKENS_STORAGE_KEY = "padosi_auth_tokens"
 const COMMUNITY_COUNT_POLL_MS = 8000
 
 function readCommunityCountCache(): CommunityCountData | null {
@@ -93,7 +93,7 @@ function resolveAccessToken(preferredToken?: string): string | undefined {
   if (typeof window === "undefined") return undefined
 
   try {
-    const raw = sessionStorage.getItem(AUTH_TOKENS_STORAGE_KEY)
+    const raw = sessionStorage.getItem(AUTH_STORAGE_KEY)
     if (!raw) return undefined
     const parsed = JSON.parse(raw) as { accessToken?: unknown }
     return typeof parsed.accessToken === "string" && parsed.accessToken.trim()
