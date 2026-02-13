@@ -11,7 +11,7 @@ const USE_API_PROXY = process.env.NEXT_PUBLIC_USE_API_PROXY === "true"
 const API_BASE_URL = USE_API_PROXY
   ? "/api/proxy"
   : requireEnv(process.env.NEXT_PUBLIC_API_BASE_URL, "NEXT_PUBLIC_API_BASE_URL")
-const ADMIN_LOGIN_PATH = process.env.NEXT_PUBLIC_ADMIN_LOGIN_PATH || "/auth/login-admin"
+const ADMIN_LOGIN_PATH = process.env.NEXT_PUBLIC_ADMIN_LOGIN_PATH || "/auth/signup-admin"
 const REFRESH_TOKEN_PATH = process.env.NEXT_PUBLIC_ADMIN_REFRESH_PATH || "/auth/refresh-token"
 
 interface ApiResponse<T> {
@@ -123,12 +123,30 @@ export interface CreateCommunityPayload {
   adminPicture: string
 }
 
+export interface CreateCommunityWithoutAdminPayload {
+  name: string
+  description: string
+  totalUnits: number
+  address: string
+  city: string
+}
+
 export interface InviteCommunityAdminPayload {
   communityId: string
   fullName: string
   email: string
   housePlot: string
   profilePicture: string
+}
+
+export interface UpdateCommunityStatusPayload {
+  communityId: string
+  status: "ACTIVE" | "INACTIVE"
+}
+
+export interface UpdateCommunityStatusData {
+  id: string
+  status: "ACTIVE" | "INACTIVE"
 }
 
 interface RequestOptions extends RequestInit {
@@ -397,6 +415,28 @@ export async function createCommunity(
 ): Promise<ApiResponse<unknown>> {
   return request<ApiResponse<unknown>>("/community/create", {
     method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function createCommunityWithoutAdmin(
+  payload: CreateCommunityWithoutAdminPayload,
+  token: string,
+): Promise<ApiResponse<unknown>> {
+  return request<ApiResponse<unknown>>("/community/create-without-admin", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateCommunityStatus(
+  payload: UpdateCommunityStatusPayload,
+  token: string,
+): Promise<ApiResponse<UpdateCommunityStatusData>> {
+  return request<ApiResponse<UpdateCommunityStatusData>>("/community/update-status", {
+    method: "PUT",
     token,
     body: JSON.stringify(payload),
   })
