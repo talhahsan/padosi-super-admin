@@ -12,9 +12,10 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth-context"
 import { AUTH_STORAGE_KEY } from "@/lib/auth-constants"
-import { fetchCommunityCount, type Community, type CommunityCountData } from "@/lib/api"
+import { fetchCommunityCount, type Community, type CommunityCountData, updateCommunityStatus } from "@/lib/api"
 import { getInitials, getMemberOverflow } from "@/lib/community-utils"
 import { useLocale } from "@/lib/locale-context"
 import { cn } from "@/lib/utils"
@@ -110,6 +111,8 @@ export function CommunityList() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null)
   const [communityCount, setCommunityCount] = useState<CommunityCountData | null>(null)
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, "ACTIVE" | "INACTIVE">>({})
+  const [statusUpdatingMap, setStatusUpdatingMap] = useState<Record<string, boolean>>({})
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const { isAuthenticated, tokens } = useAuth()
@@ -281,6 +284,62 @@ export function CommunityList() {
     router.push(`/communities/${community.id}`)
   }
 
+  function getEffectiveStatus(community: Community): "ACTIVE" | "INACTIVE" {
+    const override = statusOverrides[community.id]
+    const rawStatus = override || community.status
+    return rawStatus?.toUpperCase() === "ACTIVE" ? "ACTIVE" : "INACTIVE"
+  }
+
+  function updateCommunityCountForStatusChange(previousStatus: "ACTIVE" | "INACTIVE", nextStatus: "ACTIVE" | "INACTIVE") {
+    if (previousStatus === nextStatus) return
+    setCommunityCount((previous) => {
+      if (!previous) return previous
+      return {
+        ...previous,
+        activeCommunities: previous.activeCommunities + (nextStatus === "ACTIVE" ? 1 : -1),
+        inactiveCommunities: previous.inactiveCommunities + (nextStatus === "INACTIVE" ? 1 : -1),
+      }
+    })
+  }
+
+  async function handleToggleCommunityStatus(community: Community, nextStatus: "ACTIVE" | "INACTIVE") {
+    const accessToken = resolveAccessToken(tokens?.accessToken)
+    if (!accessToken) {
+      toast.error("You must be logged in.")
+      router.push("/login")
+      return
+    }
+
+    const currentStatus = getEffectiveStatus(community)
+    if (currentStatus === nextStatus) return
+
+    setStatusOverrides((previous) => ({ ...previous, [community.id]: nextStatus }))
+    updateCommunityCountForStatusChange(currentStatus, nextStatus)
+    setStatusUpdatingMap((previous) => ({ ...previous, [community.id]: true }))
+    try {
+      const response = await updateCommunityStatus(
+        {
+          communityId: community.id,
+          status: nextStatus,
+        },
+        accessToken,
+      )
+      const resolvedStatus = response.data?.status === "ACTIVE" ? "ACTIVE" : "INACTIVE"
+      if (resolvedStatus !== nextStatus) {
+        setStatusOverrides((previous) => ({ ...previous, [community.id]: resolvedStatus }))
+        updateCommunityCountForStatusChange(nextStatus, resolvedStatus)
+      }
+      toast.success(response.message || "Community status updated successfully.")
+    } catch (error) {
+      setStatusOverrides((previous) => ({ ...previous, [community.id]: currentStatus }))
+      updateCommunityCountForStatusChange(nextStatus, currentStatus)
+      const message = error instanceof Error ? error.message : "Failed to update community status."
+      toast.error(message)
+    } finally {
+      setStatusUpdatingMap((previous) => ({ ...previous, [community.id]: false }))
+    }
+  }
+
   if (!isAuthenticated) return null
 
   return (
@@ -296,12 +355,20 @@ export function CommunityList() {
             {t("communities.subtitle")}
           </p>
         </div>
-        <Link href="/communities/create" className="w-full sm:w-auto">
-          <Button className="w-full justify-center rounded-xl bg-accent text-accent-foreground hover:bg-accent/90 font-semibold shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.97] sm:w-auto">
-            <Plus className="h-4 w-4" />
-            {t("communities.newCommunity")}
-          </Button>
-        </Link>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <Link href="/communities/create-without-admin" className="w-full sm:w-auto">
+            <Button variant="outline" className="w-full justify-center rounded-xl border-border/70 font-semibold shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.97] sm:w-auto">
+              <Plus className="h-4 w-4" />
+              Create Without Admin
+            </Button>
+          </Link>
+          <Link href="/communities/create" className="w-full sm:w-auto">
+            <Button className="w-full justify-center rounded-xl bg-accent text-accent-foreground hover:bg-accent/90 font-semibold shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.97] sm:w-auto">
+              <Plus className="h-4 w-4" />
+              {t("communities.newCommunity")}
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Search */}
@@ -416,12 +483,15 @@ export function CommunityList() {
               >
                 <CommunityCard
                   community={community}
-                  statusClassName={getStatusColor(community.status)}
+                  status={getEffectiveStatus(community)}
+                  statusClassName={getStatusColor(getEffectiveStatus(community))}
                   t={t}
                   isRTL={isRTL}
                   compact={viewMode === "list"}
                   copiedCodeId={copiedCodeId}
+                  isStatusUpdating={!!statusUpdatingMap[community.id]}
                   onCopyCode={handleCopyCode}
+                  onToggleStatus={handleToggleCommunityStatus}
                   onOpenCommunity={handleOpenCommunity}
                 />
               </div>
@@ -592,27 +662,33 @@ function SkeletonCommunityCard() {
 
 function CommunityCard({
   community,
+  status,
   statusClassName,
   t,
   isRTL,
   compact,
   copiedCodeId,
+  isStatusUpdating,
   onCopyCode,
+  onToggleStatus,
   onOpenCommunity,
 }: {
   community: Community
+  status: "ACTIVE" | "INACTIVE"
   statusClassName: string
   t: (key: string, params?: Record<string, string | number>) => string
   isRTL: boolean
   compact: boolean
   copiedCodeId: string | null
+  isStatusUpdating: boolean
   onCopyCode: (code: string, id: string) => Promise<void>
+  onToggleStatus: (community: Community, nextStatus: "ACTIVE" | "INACTIVE") => Promise<void>
   onOpenCommunity: (community: Community) => void
 }) {
   if (compact) {
     return (
       <Card
-        className="gradient-surface cursor-pointer border border-border/70 shadow-sm transition-all duration-300 hover:shadow-md"
+        className="group relative cursor-pointer overflow-hidden border border-border/70 bg-card/95 shadow-[0_16px_34px_-24px_rgba(0,0,0,0.8)] transition-all duration-300 hover:-translate-y-[2px] hover:border-secondary/40 hover:shadow-[0_24px_48px_-24px_rgba(0,0,0,0.75)]"
         onClick={() => onOpenCommunity(community)}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -623,10 +699,12 @@ function CommunityCard({
         role="button"
         tabIndex={0}
       >
-        <CardContent className="p-0">
+        <CardContent className="relative p-0">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_10%_0%,rgba(255,255,255,0.16),rgba(255,255,255,0)_60%)]" />
+          <div className="pointer-events-none absolute -right-14 top-0 h-32 w-32 rounded-full bg-secondary/12 blur-3xl transition-opacity duration-300 group-hover:opacity-90" />
           <div
             className={cn(
-              "grid gap-4 p-4 md:grid-cols-2 xl:min-h-[132px] xl:grid-cols-[minmax(240px,2fr)_minmax(220px,1.1fr)_minmax(240px,1.2fr)] xl:items-center",
+              "relative grid gap-4 p-4 md:grid-cols-2 xl:min-h-[140px] xl:grid-cols-[minmax(240px,2fr)_minmax(220px,1.1fr)_minmax(240px,1.2fr)] xl:items-center",
               isRTL && "xl:[direction:rtl]",
             )}
           >
@@ -634,7 +712,7 @@ function CommunityCard({
               <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse justify-end")}>
                 <h3 className="truncate text-base font-semibold text-foreground">{community.name}</h3>
                 <Badge variant="outline" className={`shrink-0 text-[11px] ${statusClassName}`}>
-                  {community.status}
+                  {status}
                 </Badge>
               </div>
               <p className={cn("text-xs text-muted-foreground line-clamp-1", isRTL && "text-right")}>
@@ -646,15 +724,45 @@ function CommunityCard({
                   <span className="line-clamp-1">{community.address}</span>
                 </div>
               )}
+              <div
+                className={cn(
+                  "inline-flex w-full max-w-[220px] items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 shadow-sm",
+                  status === "ACTIVE"
+                    ? "border-emerald-500/35 bg-emerald-500/10"
+                    : "border-rose-500/35 bg-rose-500/10",
+                  isRTL ? "ml-auto" : "",
+                )}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+              >
+                <div className={cn("inline-flex items-center gap-1.5", isRTL && "flex-row-reverse")}>
+                  <span className={cn("h-2 w-2 rounded-full", status === "ACTIVE" ? "bg-emerald-500" : "bg-rose-500")} />
+                  <span className={cn("text-[10px] font-semibold uppercase tracking-[0.14em]", status === "ACTIVE" ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300")}>
+                    {status === "ACTIVE" ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                {isStatusUpdating && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                <Switch
+                  checked={status === "ACTIVE"}
+                  disabled={isStatusUpdating}
+                  onCheckedChange={(checked) => {
+                    void onToggleStatus(community, checked ? "ACTIVE" : "INACTIVE")
+                  }}
+                  className="h-5 w-9 border border-border/70 bg-muted data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-rose-500"
+                  aria-label={`Toggle ${community.name} status`}
+                />
+              </div>
             </div>
 
-            <div className={cn("grid grid-cols-2 gap-2 md:col-span-1 xl:border-x xl:border-border/60 xl:px-4", isRTL && "xl:border-x")}>
-              <div className="flex h-[64px] flex-col items-center justify-center rounded-lg border border-border/70 bg-background/80 px-2 text-center">
+            <div className={cn("grid grid-cols-2 gap-2 md:col-span-1 rounded-xl border border-border/70 bg-background/55 p-2 shadow-inner shadow-black/5 xl:px-2", isRTL && "xl:border-x")}>
+              <div className="flex h-[64px] flex-col items-center justify-center rounded-lg border border-border/60 bg-background/85 px-2 text-center">
                 <p className="text-lg font-semibold tabular-nums leading-none text-foreground">{community.memberCount}</p>
                 <p className="mt-1 text-[11px] leading-none text-muted-foreground">{t("communities.members")}</p>
               </div>
 
-              <div className="flex h-[64px] flex-col items-center justify-center rounded-lg border border-border/70 bg-background/80 px-2 text-center">
+              <div className="flex h-[64px] flex-col items-center justify-center rounded-lg border border-border/60 bg-background/85 px-2 text-center">
                 <p className="text-lg font-semibold tabular-nums leading-none text-foreground">{community.totalUnits}</p>
                 <p className="mt-1 text-[11px] leading-none text-muted-foreground">{t("communities.units")}</p>
               </div>
@@ -662,7 +770,7 @@ function CommunityCard({
 
             <div
               className={cn(
-                "grid items-center gap-3 rounded-lg border border-border/70 bg-background/50 p-2.5 md:col-span-2 xl:col-span-1",
+                "grid items-center gap-3 rounded-xl border border-border/70 bg-background/65 p-2.5 shadow-inner shadow-black/5 md:col-span-2 xl:col-span-1",
                 isRTL && "xl:[direction:ltr] xl:text-right",
               )}
             >
@@ -672,7 +780,7 @@ function CommunityCard({
                 </span>
                 {community.code ? (
                   <div className={cn("inline-flex w-full items-center justify-end gap-2 sm:w-auto", isRTL && "flex-row-reverse")}>
-                    <code className="inline-flex h-7 min-w-[86px] max-w-[140px] items-center justify-center truncate rounded-md bg-muted px-2 text-[11px] font-mono text-foreground">
+                    <code className="inline-flex h-7 min-w-[86px] max-w-[140px] items-center justify-center truncate rounded-md border border-border/70 bg-muted/80 px-2 text-[11px] font-mono text-foreground">
                       <span className="truncate" title={community.code}>{community.code}</span>
                     </code>
                     <button
@@ -721,9 +829,9 @@ function CommunityCard({
   }
 
   return (
-    <Card className={cn(
-      "gradient-surface h-full cursor-pointer border border-border/70 shadow-md transition-all duration-300 hover:shadow-lg",
-      compact ? "min-h-[220px]" : "min-h-[320px] hover:-translate-y-1",
+      <Card className={cn(
+      "group relative h-full cursor-pointer overflow-hidden border border-border/70 bg-card/95 shadow-[0_20px_42px_-24px_rgba(0,0,0,0.85)] transition-all duration-300 hover:border-secondary/45 hover:shadow-[0_28px_54px_-24px_rgba(0,0,0,0.8)]",
+      compact ? "min-h-[220px]" : "min-h-[320px] hover:-translate-y-[4px]",
     )}
       onClick={() => onOpenCommunity(community)}
       onKeyDown={(event) => {
@@ -735,12 +843,14 @@ function CommunityCard({
       role="button"
       tabIndex={0}
     >
-      <CardContent className={cn("flex h-full flex-col p-5", compact ? "gap-3" : "gap-4")}>
-        <div className="mb-1 h-1 w-full rounded-full bg-gradient-to-r from-secondary/70 via-accent/70 to-secondary/30" />
+      <CardContent className={cn("relative flex h-full flex-col p-5", compact ? "gap-3" : "gap-4")}>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(130%_90%_at_0%_0%,rgba(255,255,255,0.12),rgba(255,255,255,0)_58%)]" />
+        <div className="pointer-events-none absolute -right-12 top-0 h-36 w-36 rounded-full bg-accent/15 blur-3xl transition-opacity duration-300 group-hover:opacity-95" />
+        <div className="relative mb-1 h-1.5 w-full rounded-full bg-gradient-to-r from-secondary/75 via-accent/70 to-secondary/35 shadow-[0_0_18px_rgba(0,0,0,0.1)]" />
         {/* Header */}
-        <div className={cn("flex items-start justify-between gap-3", isRTL && "flex-row-reverse")}>
+        <div className={cn("relative flex items-start justify-between gap-3", isRTL && "flex-row-reverse")}>
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-base font-semibold text-foreground">
+            <h3 className="truncate text-base font-semibold tracking-[0.01em] text-foreground">
               {community.name}
             </h3>
             <p className={cn("mt-0.5 text-xs text-muted-foreground", compact ? "line-clamp-1" : "line-clamp-2")}>
@@ -751,26 +861,60 @@ function CommunityCard({
             variant="outline"
             className={`shrink-0 text-xs ${statusClassName}`}
           >
-            {community.status}
+            {status}
           </Badge>
         </div>
 
+        <div
+          className={cn("flex", isRTL ? "justify-start" : "justify-end")}
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+        >
+          <div
+            className={cn(
+              "inline-flex items-center gap-2.5 rounded-2xl border px-3 py-2 shadow-sm backdrop-blur-sm transition-colors",
+              status === "ACTIVE"
+                ? "border-emerald-500/35 bg-emerald-500/10"
+                : "border-rose-500/35 bg-rose-500/10",
+            )}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className={cn("h-2.5 w-2.5 rounded-full", status === "ACTIVE" ? "bg-emerald-500" : "bg-rose-500")} />
+              <span className={cn("text-[10px] font-semibold uppercase tracking-[0.16em]", status === "ACTIVE" ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300")}>
+                {status === "ACTIVE" ? "Active" : "Inactive"}
+              </span>
+            </div>
+            {isStatusUpdating && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+            <Switch
+              checked={status === "ACTIVE"}
+              disabled={isStatusUpdating}
+              onCheckedChange={(checked) => {
+                void onToggleStatus(community, checked ? "ACTIVE" : "INACTIVE")
+              }}
+              className="border border-border/70 bg-muted data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-rose-500"
+              aria-label={`Toggle ${community.name} status`}
+            />
+          </div>
+        </div>
+
         {/* Stats */}
-        <div className={cn("flex items-center gap-4 text-sm text-muted-foreground", isRTL && "justify-end", compact && "flex-wrap")}>
-          <div className={cn("flex items-center gap-1.5", isRTL && "flex-row-reverse")}>
+        <div className={cn("relative flex items-center gap-3 rounded-xl border border-border/60 bg-background/65 p-2.5 text-sm text-muted-foreground shadow-inner shadow-black/5", isRTL && "justify-end", compact && "flex-wrap")}>
+          <div className={cn("inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background/75 px-2 py-1", isRTL && "flex-row-reverse")}>
             <Users className="h-3.5 w-3.5" />
             <span>{community.memberCount} {t("communities.members")}</span>
           </div>
-          <div className={cn("flex items-center gap-1.5", isRTL && "flex-row-reverse")}>
+          <div className={cn("inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background/75 px-2 py-1", isRTL && "flex-row-reverse")}>
             <Home className="h-3.5 w-3.5" />
             <span>{community.totalUnits} {t("communities.units")}</span>
           </div>
         </div>
 
         {/* Address */}
-        <div className={cn(compact ? "min-h-0" : "min-h-5")}>
+        <div className={cn("relative", compact ? "min-h-0" : "min-h-5")}>
           {community.address && (
-            <div className={cn("flex items-start gap-1.5 text-sm text-muted-foreground", isRTL && "flex-row-reverse text-right")}>
+            <div className={cn("inline-flex items-start gap-1.5 rounded-md border border-border/50 bg-background/55 px-2.5 py-1.5 text-sm text-muted-foreground", isRTL && "flex-row-reverse text-right")}>
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span className="line-clamp-1">{community.address}</span>
             </div>
@@ -778,7 +922,7 @@ function CommunityCard({
         </div>
 
         {/* Preview Members */}
-        <div className={cn("mt-auto border-t border-border pt-3", compact ? "min-h-[38px]" : "min-h-[42px]")}>
+        <div className={cn("relative mt-auto border-t border-border/70 pt-3", compact ? "min-h-[38px]" : "min-h-[42px]")}>
           {community.previewMembers && community.previewMembers.length > 0 && (
             <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
               <div className="flex -space-x-2">
@@ -799,12 +943,12 @@ function CommunityCard({
         </div>
 
         {/* Community Code */}
-        <div className="min-h-[30px] border-t border-border pt-3">
+        <div className="relative min-h-[30px] border-t border-border/70 pt-3">
           {community.code && (
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background/65 px-2.5 py-1.5">
               <span className="text-xs text-muted-foreground">{t("communities.code")}</span>
               <div className="inline-flex items-center gap-1.5">
-                <code className="rounded bg-muted px-2 py-0.5 text-xs font-mono text-foreground">
+                <code className="rounded border border-border/60 bg-muted/80 px-2 py-0.5 text-xs font-mono text-foreground">
                   {community.code}
                 </code>
                 <button
