@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from "@/lib/auth-context"
+import { AUTH_STORAGE_KEY } from "@/lib/auth-constants"
 import {
   assignCommunityAdmin,
   type Community,
@@ -29,15 +30,16 @@ import { useLocale } from "@/lib/locale-context"
 import { cn } from "@/lib/utils"
 
 const COMMUNITY_DETAILS_CACHE_KEY = "padosi_selected_community"
-const AUTH_TOKENS_STORAGE_KEY = "padosi_auth_tokens"
 const USERS_LIMIT = 10
+const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
 function resolveAccessToken(preferredToken?: string): string | undefined {
   if (preferredToken) return preferredToken
   if (typeof window === "undefined") return undefined
 
   try {
-    const raw = sessionStorage.getItem(AUTH_TOKENS_STORAGE_KEY)
+    const raw = sessionStorage.getItem(AUTH_STORAGE_KEY)
     if (!raw) return undefined
     const parsed = JSON.parse(raw) as { accessToken?: unknown }
     return typeof parsed.accessToken === "string" && parsed.accessToken.trim()
@@ -287,9 +289,22 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     const file = event.target.files?.[0]
     if (!file) return
 
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      toast.error("Only PNG, JPG, JPEG, and WEBP images are allowed.")
+      event.target.value = ""
+      return
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("Image must be 5MB or smaller.")
+      event.target.value = ""
+      return
+    }
+
     const accessToken = resolveAccessToken(tokens?.accessToken)
     if (!accessToken) {
       toast.error("You must be logged in.")
+      event.target.value = ""
       return
     }
 
