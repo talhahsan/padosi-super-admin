@@ -305,7 +305,7 @@ export function CommunityList() {
   async function handleToggleCommunityStatus(community: Community, nextStatus: "ACTIVE" | "INACTIVE") {
     const accessToken = resolveAccessToken(tokens?.accessToken)
     if (!accessToken) {
-      toast.error("You must be logged in.")
+      toast.error(t("communities.mustBeLoggedIn"))
       router.push("/login")
       return
     }
@@ -329,11 +329,11 @@ export function CommunityList() {
         setStatusOverrides((previous) => ({ ...previous, [community.id]: resolvedStatus }))
         updateCommunityCountForStatusChange(nextStatus, resolvedStatus)
       }
-      toast.success(response.message || "Community status updated successfully.")
+      toast.success(response.message || t("communities.statusUpdated"))
     } catch (error) {
       setStatusOverrides((previous) => ({ ...previous, [community.id]: currentStatus }))
       updateCommunityCountForStatusChange(nextStatus, currentStatus)
-      const message = error instanceof Error ? error.message : "Failed to update community status."
+      const message = error instanceof Error ? error.message : t("communities.statusUpdateFailed")
       toast.error(message)
     } finally {
       setStatusUpdatingMap((previous) => ({ ...previous, [community.id]: false }))
@@ -740,7 +740,7 @@ function CommunityCard({
                 <div className={cn("inline-flex items-center gap-1.5", isRTL && "flex-row-reverse")}>
                   <span className={cn("h-2 w-2 rounded-full", status === "ACTIVE" ? "bg-emerald-500" : "bg-rose-500")} />
                   <span className={cn("text-[10px] font-semibold uppercase tracking-[0.14em]", status === "ACTIVE" ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300")}>
-                    {status === "ACTIVE" ? "Active" : "Inactive"}
+                    {status === "ACTIVE" ? t("communities.active") : t("communities.inactive")}
                   </span>
                 </div>
                 {isStatusUpdating && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
@@ -883,7 +883,7 @@ function CommunityCard({
             <div className="flex items-center gap-1.5">
               <span className={cn("h-2.5 w-2.5 rounded-full", status === "ACTIVE" ? "bg-emerald-500" : "bg-rose-500")} />
               <span className={cn("text-[10px] font-semibold uppercase tracking-[0.16em]", status === "ACTIVE" ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300")}>
-                {status === "ACTIVE" ? "Active" : "Inactive"}
+                {status === "ACTIVE" ? t("communities.active") : t("communities.inactive")}
               </span>
             </div>
             {isStatusUpdating && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
