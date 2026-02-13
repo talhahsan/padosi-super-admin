@@ -5,6 +5,7 @@ import { AuthProvider } from '@/lib/auth-context'
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { LocaleProvider } from "@/lib/locale-context"
+import { Analytics } from "@vercel/analytics/next"
 
 import './globals.css'
 
@@ -28,6 +29,7 @@ export default function RootLayout({
             <AuthProvider>
               {children}
               <Toaster position="top-right" richColors />
+              <Analytics />
             </AuthProvider>
           </LocaleProvider>
         </ThemeProvider>
