@@ -13,6 +13,8 @@ const API_BASE_URL = USE_API_PROXY
   : requireEnv(process.env.NEXT_PUBLIC_API_BASE_URL, "NEXT_PUBLIC_API_BASE_URL")
 const ADMIN_LOGIN_PATH = process.env.NEXT_PUBLIC_ADMIN_LOGIN_PATH || "/auth/signup-admin"
 const REFRESH_TOKEN_PATH = process.env.NEXT_PUBLIC_ADMIN_REFRESH_PATH || "/auth/refresh-token"
+const COMMUNITY_UPDATE_PATH = process.env.NEXT_PUBLIC_COMMUNITY_UPDATE_PATH || "/community/update"
+const COMMUNITY_DELETE_PATH = process.env.NEXT_PUBLIC_COMMUNITY_DELETE_PATH || "/community/delete"
 
 interface ApiResponse<T> {
   success: boolean
@@ -135,6 +137,7 @@ export interface InviteCommunityAdminPayload {
   communityId: string
   fullName: string
   email: string
+  mobileNumber: string
   housePlot: string
   profilePicture: string
 }
@@ -147,6 +150,14 @@ export interface UpdateCommunityStatusPayload {
 export interface UpdateCommunityStatusData {
   id: string
   status: "ACTIVE" | "INACTIVE"
+}
+
+export interface UpdateCommunityPayload {
+  communityId: string
+  name: string
+  description: string
+  address: string
+  totalUnits: number
 }
 
 interface RequestOptions extends RequestInit {
@@ -409,6 +420,14 @@ export async function uploadFileToPresignUrl(url: string, file: File): Promise<v
   }
 }
 
+export async function deleteFileByName(fileName: string, token: string): Promise<ApiResponse<unknown>> {
+  return request<ApiResponse<unknown>>("/file/delete", {
+    method: "DELETE",
+    token,
+    body: JSON.stringify({ fileName }),
+  })
+}
+
 export async function createCommunity(
   payload: CreateCommunityPayload,
   token: string,
@@ -439,6 +458,27 @@ export async function updateCommunityStatus(
     method: "PUT",
     token,
     body: JSON.stringify(payload),
+  })
+}
+
+export async function updateCommunity(
+  payload: UpdateCommunityPayload,
+  token: string,
+): Promise<ApiResponse<unknown>> {
+  return request<ApiResponse<unknown>>(COMMUNITY_UPDATE_PATH, {
+    method: "PUT",
+    token,
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteCommunity(
+  communityId: string,
+  token: string,
+): Promise<ApiResponse<unknown>> {
+  return request<ApiResponse<unknown>>(`${COMMUNITY_DELETE_PATH}/${communityId}`, {
+    method: "DELETE",
+    token,
   })
 }
 
