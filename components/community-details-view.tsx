@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/lib/auth-context"
 import { AUTH_STORAGE_KEY } from "@/lib/auth-constants"
 import {
@@ -22,6 +23,7 @@ import {
   getPreSignUrl,
   inviteCommunityAdmin,
   resendCommunityAdminInvite,
+  updateCommunityStatus,
   uploadFileToPresignUrl,
   type CommunityAdminDetails,
   type CommunityUser,
@@ -104,6 +106,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
   const [isLoadingMoreUsers, setIsLoadingMoreUsers] = useState(false)
   const [usernameSearch, setUsernameSearch] = useState("")
   const [debouncedUsernameSearch, setDebouncedUsernameSearch] = useState("")
+  const [isStatusUpdating, setIsStatusUpdating] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -371,6 +374,72 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     }
   }
 
+  async function handleCommunityStatusToggle(checked: boolean) {
+    const accessToken = resolveAccessToken(tokens?.accessToken)
+    if (!accessToken) {
+      toast.error("You must be logged in.")
+      return
+    }
+    if (!community) {
+      toast.error("Community details are not loaded.")
+      return
+    }
+
+    const nextStatus = checked ? "ACTIVE" : "INACTIVE"
+    const currentStatus = community.status?.toUpperCase() === "ACTIVE" ? "ACTIVE" : "INACTIVE"
+    if (currentStatus === nextStatus) return
+
+    setCommunity((previous) => {
+      if (!previous) return previous
+      const updated = { ...previous, status: nextStatus }
+      try {
+        sessionStorage.setItem(COMMUNITY_DETAILS_CACHE_KEY, JSON.stringify(updated))
+      } catch {
+        // no-op
+      }
+      return updated
+    })
+    setIsStatusUpdating(true)
+    try {
+      const response = await updateCommunityStatus(
+        {
+          communityId,
+          status: nextStatus,
+        },
+        accessToken,
+      )
+      const resolvedStatus = response.data?.status === "ACTIVE" ? "ACTIVE" : "INACTIVE"
+      if (resolvedStatus !== nextStatus) {
+        setCommunity((previous) => {
+          if (!previous) return previous
+          const updated = { ...previous, status: resolvedStatus }
+          try {
+            sessionStorage.setItem(COMMUNITY_DETAILS_CACHE_KEY, JSON.stringify(updated))
+          } catch {
+            // no-op
+          }
+          return updated
+        })
+      }
+      toast.success(response.message || "Community status updated successfully.")
+    } catch (error) {
+      setCommunity((previous) => {
+        if (!previous) return previous
+        const updated = { ...previous, status: currentStatus }
+        try {
+          sessionStorage.setItem(COMMUNITY_DETAILS_CACHE_KEY, JSON.stringify(updated))
+        } catch {
+          // no-op
+        }
+        return updated
+      })
+      const message = error instanceof Error ? error.message : "Failed to update community status."
+      toast.error(message)
+    } finally {
+      setIsStatusUpdating(false)
+    }
+  }
+
   if (!isAuthenticated) return null
 
   return (
@@ -404,6 +473,47 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                 </Badge>
               )}
             </div>
+
+            {community && (
+              <div
+                className={cn(
+                  "mt-4 inline-flex w-full max-w-[250px] items-center justify-between gap-2 rounded-xl border px-3 py-2 shadow-sm",
+                  community.status?.toUpperCase() === "ACTIVE"
+                    ? "border-emerald-500/35 bg-emerald-500/10"
+                    : "border-rose-500/35 bg-rose-500/10",
+                  isRTL && "ml-auto",
+                )}
+              >
+                <div className={cn("inline-flex items-center gap-1.5", isRTL && "flex-row-reverse")}>
+                  <span
+                    className={cn(
+                      "h-2.5 w-2.5 rounded-full",
+                      community.status?.toUpperCase() === "ACTIVE" ? "bg-emerald-500" : "bg-rose-500",
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "text-[10px] font-semibold uppercase tracking-[0.14em]",
+                      community.status?.toUpperCase() === "ACTIVE"
+                        ? "text-emerald-700 dark:text-emerald-300"
+                        : "text-rose-700 dark:text-rose-300",
+                    )}
+                  >
+                    {community.status?.toUpperCase() === "ACTIVE" ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="inline-flex items-center gap-2">
+                  {isStatusUpdating && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                  <Switch
+                    checked={community.status?.toUpperCase() === "ACTIVE"}
+                    disabled={isStatusUpdating}
+                    onCheckedChange={handleCommunityStatusToggle}
+                    className="border border-border/70 bg-muted data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-rose-500"
+                    aria-label="Toggle community status"
+                  />
+                </div>
+              </div>
+            )}
 
             {community ? (
               <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
