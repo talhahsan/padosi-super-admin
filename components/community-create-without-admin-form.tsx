@@ -38,7 +38,7 @@ export function CommunityCreateWithoutAdminForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const { tokens, isAuthenticated } = useAuth()
-  const { isRTL } = useLocale()
+  const { t, isRTL } = useLocale()
   const router = useRouter()
 
   useEffect(() => {
@@ -63,29 +63,29 @@ export function CommunityCreateWithoutAdminForm() {
     const trimmedCity = formData.city.trim()
 
     if (!trimmedName) {
-      nextErrors.name = "Community name is required."
+      nextErrors.name = t("createWithoutAdmin.validationNameRequired")
     } else if (trimmedName.length > 100) {
-      nextErrors.name = "Community name must be 100 characters or less."
+      nextErrors.name = t("createWithoutAdmin.validationNameMax")
     }
 
     if (!trimmedDescription) {
-      nextErrors.description = "Description is required."
+      nextErrors.description = t("createWithoutAdmin.validationDescriptionRequired")
     } else if (trimmedDescription.length > 500) {
-      nextErrors.description = "Description must be 500 characters or less."
+      nextErrors.description = t("createWithoutAdmin.validationDescriptionMax")
     }
 
     if (!trimmedTotalUnits) {
-      nextErrors.totalUnits = "Total units is required."
+      nextErrors.totalUnits = t("createWithoutAdmin.validationTotalUnitsRequired")
     } else if (!/^\d+$/.test(trimmedTotalUnits) || Number(trimmedTotalUnits) < 1) {
-      nextErrors.totalUnits = "Total units must be a positive number."
+      nextErrors.totalUnits = t("createWithoutAdmin.validationTotalUnitsPositive")
     }
 
     if (!trimmedAddress) {
-      nextErrors.address = "Address is required."
+      nextErrors.address = t("createWithoutAdmin.validationAddressRequired")
     }
 
     if (!trimmedCity) {
-      nextErrors.city = "City is required."
+      nextErrors.city = t("createWithoutAdmin.validationCityRequired")
     }
 
     setErrors(nextErrors)
@@ -97,7 +97,7 @@ export function CommunityCreateWithoutAdminForm() {
     if (!validate()) return
 
     if (!tokens?.accessToken) {
-      toast.error("You must be logged in.")
+      toast.error(t("createWithoutAdmin.mustBeLoggedIn"))
       router.push("/login")
       return
     }
@@ -115,10 +115,10 @@ export function CommunityCreateWithoutAdminForm() {
         tokens.accessToken,
       )
 
-      toast.success("Community created successfully.")
+      toast.success(t("createWithoutAdmin.createdSuccess"))
       router.push("/communities")
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create community."
+      const message = error instanceof Error ? error.message : t("createWithoutAdmin.createFailed")
       toast.error(message)
     } finally {
       setIsSubmitting(false)
@@ -133,15 +133,15 @@ export function CommunityCreateWithoutAdminForm() {
         <Link href="/communities">
           <Button variant="ghost" size="icon" className="rounded-xl text-foreground hover:bg-background/80">
             <ArrowLeft className={cn("h-5 w-5", isRTL && "rotate-180")} />
-            <span className="sr-only">Back to communities</span>
+            <span className="sr-only">{t("createWithoutAdmin.backToCommunities")}</span>
           </Button>
         </Link>
         <div className={cn("space-y-1", isRTL && "text-right")}>
           <p className="inline-flex w-fit items-center rounded-md bg-secondary/15 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-secondary">
-            Community Details
+            {t("createWithoutAdmin.badge")}
           </p>
-          <h1 className="text-2xl font-bold text-foreground">Create Community (Without Admin)</h1>
-          <p className="text-sm text-muted-foreground">Create a new community with basic details only.</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("createWithoutAdmin.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("createWithoutAdmin.subtitle")}</p>
         </div>
       </div>
 
@@ -150,13 +150,13 @@ export function CommunityCreateWithoutAdminForm() {
           <CardHeader className="pb-3">
             <CardTitle className={cn("flex items-center gap-2 text-lg text-foreground", isRTL && "flex-row-reverse justify-end")}>
               <Building2 className="h-4.5 w-4.5 text-secondary" />
-              Community Information
+              {t("createWithoutAdmin.cardTitle")}
             </CardTitle>
-            <CardDescription>Admin details are not required on this screen.</CardDescription>
+            <CardDescription>{t("createWithoutAdmin.cardDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="name">Community Name</Label>
+              <Label htmlFor="name">{t("createWithoutAdmin.communityName")}</Label>
               <Input
                 id="name"
                 value={formData.name}
@@ -169,7 +169,7 @@ export function CommunityCreateWithoutAdminForm() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">{t("createWithoutAdmin.description")}</Label>
               <textarea
                 id="description"
                 value={formData.description}
@@ -188,7 +188,7 @@ export function CommunityCreateWithoutAdminForm() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="totalUnits">Total Units</Label>
+                <Label htmlFor="totalUnits">{t("createWithoutAdmin.totalUnits")}</Label>
                 <Input
                   id="totalUnits"
                   type="text"
@@ -202,7 +202,7 @@ export function CommunityCreateWithoutAdminForm() {
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="city">City</Label>
+                <Label htmlFor="city">{t("createWithoutAdmin.city")}</Label>
                 <Input
                   id="city"
                   value={formData.city}
@@ -215,7 +215,7 @@ export function CommunityCreateWithoutAdminForm() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="address">Address</Label>
+              <Label htmlFor="address">{t("createWithoutAdmin.address")}</Label>
               <Input
                 id="address"
                 value={formData.address}
@@ -234,10 +234,10 @@ export function CommunityCreateWithoutAdminForm() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Creating...
+                  {t("createWithoutAdmin.creating")}
                 </>
               ) : (
-                "Create Community"
+                t("createWithoutAdmin.createCommunity")
               )}
             </Button>
           </CardContent>
