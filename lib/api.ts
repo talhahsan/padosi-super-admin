@@ -1,5 +1,16 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://159.203.138.10:8000"
-const AUTH_STORAGE_KEY = "padosi_auth_tokens"
+import { AUTH_STORAGE_KEY } from "@/lib/auth-constants"
+
+function requireEnv(name: string): string {
+  const value = process.env[name]
+  if (!value) {
+    throw new Error(`Missing ${name} environment variable`)
+  }
+  return value
+}
+
+const API_BASE_URL = requireEnv("NEXT_PUBLIC_API_BASE_URL")
+const ADMIN_LOGIN_PATH = process.env.NEXT_PUBLIC_ADMIN_LOGIN_PATH || "/auth/login-admin"
+const REFRESH_TOKEN_PATH = process.env.NEXT_PUBLIC_ADMIN_REFRESH_PATH || "/auth/refresh-token"
 
 interface ApiResponse<T> {
   success: boolean
@@ -123,6 +134,14 @@ interface RequestOptions extends RequestInit {
   _retryOn419?: boolean
 }
 
+let volatileRefreshToken: string | null = null
+
+interface StoredAuthSession {
+  accessToken: string
+  accessTokenExpiresAt: string
+  refreshTokenExpiresAt: string
+}
+
 function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}`
 }
@@ -144,27 +163,35 @@ function getPayloadCode(payload: unknown): number | null {
 }
 
 function readStoredRefreshToken(): string | null {
-  if (typeof window === "undefined") return null
-  try {
-    const raw = sessionStorage.getItem(AUTH_STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as { refreshToken?: unknown }
-    return typeof parsed.refreshToken === "string" && parsed.refreshToken.trim()
-      ? parsed.refreshToken
-      : null
-  } catch {
-    return null
+  return volatileRefreshToken
+}
+
+function persistAuthSession(tokens: LoginData) {
+  if (typeof window === "undefined") return
+  const session: StoredAuthSession = {
+    accessToken: tokens.accessToken,
+    accessTokenExpiresAt: tokens.accessTokenExpiresAt,
+    refreshTokenExpiresAt: tokens.refreshTokenExpiresAt,
   }
+  sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session))
+}
+
+export function setRefreshToken(refreshToken: string | null | undefined) {
+  volatileRefreshToken = typeof refreshToken === "string" && refreshToken.trim()
+    ? refreshToken
+    : null
 }
 
 function storeAuthTokens(tokens: LoginData) {
   if (typeof window === "undefined") return
-  sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(tokens))
+  setRefreshToken(tokens.refreshToken)
+  persistAuthSession(tokens)
   window.dispatchEvent(new CustomEvent("padosi-auth-updated", { detail: tokens }))
 }
 
 function forceLogoutFromApi() {
   if (typeof window === "undefined") return
+  setRefreshToken(null)
   sessionStorage.removeItem(AUTH_STORAGE_KEY)
   window.dispatchEvent(new CustomEvent("padosi-force-logout"))
 }
@@ -174,7 +201,7 @@ let refreshInFlight: Promise<LoginData> | null = null
 async function refreshTokensWithLock(refreshToken: string): Promise<LoginData> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
-      const response = await fetch(joinUrl(API_BASE_URL, "/auth/refresh-token"), {
+      const response = await fetch(joinUrl(API_BASE_URL, REFRESH_TOKEN_PATH), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -299,7 +326,7 @@ function normalizeLoginData(payload: unknown): LoginData {
 }
 
 export async function loginAdmin(email: string, password: string): Promise<ApiResponse<LoginData>> {
-  const response = await request<unknown>("/auth/signup-admin", {
+  const response = await request<unknown>(ADMIN_LOGIN_PATH, {
     method: "POST",
     body: JSON.stringify({ email, password }),
   })
@@ -318,12 +345,14 @@ export async function loginAdmin(email: string, password: string): Promise<ApiRe
 }
 
 export async function refreshAuthToken(refreshToken: string): Promise<ApiResponse<LoginData>> {
-  const response = await request<unknown>("/auth/refresh-token", {
+  const response = await request<unknown>(REFRESH_TOKEN_PATH, {
     method: "POST",
     body: JSON.stringify({ refreshToken }),
   })
 
   const tokenData = normalizeLoginData(response)
+  setRefreshToken(tokenData.refreshToken)
+  persistAuthSession(tokenData)
   const wrapped = (response && typeof response === "object"
     ? (response as { success?: unknown; message?: unknown; code?: unknown })
     : {}) as { success?: unknown; message?: unknown; code?: unknown }
