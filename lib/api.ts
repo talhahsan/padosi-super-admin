@@ -432,10 +432,23 @@ export async function createCommunity(
   payload: CreateCommunityPayload,
   token: string,
 ): Promise<ApiResponse<unknown>> {
+  const requestPayload = {
+    name: payload.name,
+    description: payload.description,
+    totalUnits: payload.totalUnits,
+    address: payload.address,
+    city: payload.city,
+    adminName: payload.adminName,
+    adminEmail: payload.adminEmail,
+    adminHousePlot: payload.adminHousePlot,
+    adminPhone: payload.adminPhoneNumber,
+    adminPicture: payload.adminPicture,
+  }
+
   return request<ApiResponse<unknown>>("/community/create", {
     method: "POST",
     token,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(requestPayload),
   })
 }
 
