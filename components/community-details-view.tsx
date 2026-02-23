@@ -96,16 +96,42 @@ function getStatusColor(status: string) {
   }
 }
 
+function normalizeCommunityAdmins(payload: unknown): CommunityAdminDetails[] {
+  if (!payload) return []
+
+  if (Array.isArray(payload)) {
+    return payload.filter((item): item is CommunityAdminDetails => typeof item === "object" && item !== null)
+  }
+
+  if (typeof payload === "object") {
+    const candidate = payload as {
+      admins?: unknown
+      admin?: unknown
+    }
+
+    if (Array.isArray(candidate.admins)) {
+      return candidate.admins.filter((item): item is CommunityAdminDetails => typeof item === "object" && item !== null)
+    }
+
+    if (candidate.admin && typeof candidate.admin === "object") {
+      return [candidate.admin as CommunityAdminDetails]
+    }
+
+    return [payload as CommunityAdminDetails]
+  }
+
+  return []
+}
+
 export function CommunityDetailsView({ communityId }: { communityId: string }) {
   const { isAuthenticated, tokens } = useAuth()
   const { t, isRTL } = useLocale()
   const router = useRouter()
 
   const [community, setCommunity] = useState<Community | null>(null)
-  const [admin, setAdmin] = useState<CommunityAdminDetails | null>(null)
+  const [admins, setAdmins] = useState<CommunityAdminDetails[]>([])
   const [isLoadingAdmin, setIsLoadingAdmin] = useState(true)
   const [isResendingInvite, setIsResendingInvite] = useState(false)
-  const [isAdminMissing, setIsAdminMissing] = useState(false)
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null)
   const [inviteForm, setInviteForm] = useState({
     fullName: "",
@@ -144,7 +170,6 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     address: "",
     totalUnits: "",
   })
-
   useEffect(() => {
     if (!isAuthenticated) {
       router.push("/login")
@@ -159,14 +184,12 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
 
     let cancelled = false
     setIsLoadingAdmin(true)
-    setIsAdminMissing(false)
 
     fetchCommunityAdminDetails(communityId, accessToken)
       .then((response) => {
         if (cancelled) return
-        const nextAdmin = response.data ?? null
-        setAdmin(nextAdmin)
-        setIsAdminMissing(!nextAdmin)
+        const nextAdmins = normalizeCommunityAdmins(response.data)
+        setAdmins(nextAdmins)
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : t("communityDetails.fetchAdminFailed")
@@ -178,8 +201,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
             normalized.includes("not assigned")
 
           if (adminMissing) {
-            setAdmin(null)
-            setIsAdminMissing(true)
+            setAdmins([])
           } else {
             toast.error(message)
           }
@@ -275,13 +297,13 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     })
   }
 
-  async function handleResendInvite() {
+  async function handleResendInvite(email: string) {
     const accessToken = resolveAccessToken(tokens?.accessToken)
     if (!accessToken) {
       toast.error(t("communityDetails.mustBeLoggedIn"))
       return
     }
-    if (!admin?.email) {
+    if (!email) {
       toast.error(t("communityDetails.adminEmailMissing"))
       return
     }
@@ -289,7 +311,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     setIsResendingInvite(true)
     try {
       const response = await resendCommunityAdminInvite(
-        { communityId, email: admin.email },
+        { communityId, email },
         accessToken,
       )
       toast.success(response.message || t("communityDetails.resendInviteSuccess"))
@@ -340,10 +362,9 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     try {
       const response = await assignCommunityAdmin({ communityId, userId }, accessToken)
       toast.success(response.message || t("communityDetails.assignAdminSuccess"))
-      setIsAdminMissing(false)
 
       const adminResponse = await fetchCommunityAdminDetails(communityId, accessToken)
-      setAdmin(adminResponse.data ?? null)
+      setAdmins(normalizeCommunityAdmins(adminResponse.data))
     } catch (error) {
       const message = error instanceof Error ? error.message : t("communityDetails.assignAdminFailed")
       toast.error(message)
@@ -443,8 +464,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
       setInvitePicturePreview(null)
 
       const adminResponse = await fetchCommunityAdminDetails(communityId, accessToken)
-      setAdmin(adminResponse.data ?? null)
-      setIsAdminMissing(!adminResponse.data)
+      setAdmins(normalizeCommunityAdmins(adminResponse.data))
     } catch (error) {
       const message = error instanceof Error ? error.message : t("communityDetails.inviteAdminFailed")
       toast.error(message)
@@ -860,64 +880,66 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                 <Skeleton className="h-10 w-full rounded-xl" />
                 <Skeleton className="h-16 w-full rounded-xl" />
               </div>
-            ) : admin ? (
-              <div className="mt-4 space-y-3">
-                <div className={cn("flex items-center gap-3 rounded-2xl border border-border/70 bg-background/75 p-3.5 shadow-sm", isRTL && "flex-row-reverse")}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openMediaViewer(
-                        admin.profilePictureUrl || null,
-                        admin.fullName || t("communityDetails.adminPhoto"),
-                        getInitials(admin.fullName || admin.username || "Admin"),
-                      )
-                    }
-                    className="rounded-full transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/60"
-                    aria-label={t("communityDetails.viewAdminProfilePicture")}
-                  >
-                    <Avatar className="h-12 w-12 border border-border/70 ring-2 ring-background">
-                      <AvatarImage src={admin.profilePictureUrl || undefined} alt={admin.fullName} />
-                      <AvatarFallback>{getInitials(admin.fullName || admin.username || "Admin")}</AvatarFallback>
-                    </Avatar>
-                  </button>
-                  <div className={cn("min-w-0", isRTL && "text-right")}>
-                    <p className="truncate text-sm font-semibold text-foreground">{admin.fullName}</p>
-                    <p className="truncate text-xs text-muted-foreground">@{admin.username}</p>
-                  </div>
-                  <div className="ml-auto">
-                    <Badge
-                      variant="outline"
-                      className={admin.isJoined === false
-                        ? "border-amber-200 bg-amber-100 text-amber-800"
-                        : "border-emerald-200 bg-emerald-100 text-emerald-800"}
-                    >
-                      {admin.isJoined === false ? t("communityDetails.invitePending") : t("communityDetails.joined")}
-                    </Badge>
-                  </div>
-                </div>
+            ) : admins.length > 0 ? (
+              <div className="mt-4 space-y-4">
+                {admins.map((admin) => (
+                  <div key={admin.id || admin.email} className="space-y-3 rounded-2xl border border-border/70 bg-background/45 p-3.5">
+                    <div className={cn("flex items-center gap-3 rounded-2xl border border-border/70 bg-background/75 p-3.5 shadow-sm", isRTL && "flex-row-reverse")}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openMediaViewer(
+                            admin.profilePictureUrl || null,
+                            admin.fullName || t("communityDetails.adminPhoto"),
+                            getInitials(admin.fullName || admin.username || "Admin"),
+                          )
+                        }
+                        className="rounded-full transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/60"
+                        aria-label={t("communityDetails.viewAdminProfilePicture")}
+                      >
+                        <Avatar className="h-12 w-12 border border-border/70 ring-2 ring-background">
+                          <AvatarImage src={admin.profilePictureUrl || undefined} alt={admin.fullName} />
+                          <AvatarFallback>{getInitials(admin.fullName || admin.username || "Admin")}</AvatarFallback>
+                        </Avatar>
+                      </button>
+                      <div className={cn("min-w-0", isRTL && "text-right")}>
+                        <p className="truncate text-sm font-semibold text-foreground">{admin.fullName}</p>
+                        <p className="truncate text-xs text-muted-foreground">@{admin.username}</p>
+                      </div>
+                      <div className="ml-auto">
+                        <Badge
+                          variant="outline"
+                          className={admin.isJoined === false
+                            ? "border-amber-200 bg-amber-100 text-amber-800"
+                            : "border-emerald-200 bg-emerald-100 text-emerald-800"}
+                        >
+                          {admin.isJoined === false ? t("communityDetails.invitePending") : t("communityDetails.joined")}
+                        </Badge>
+                      </div>
+                    </div>
 
-                <InfoRow icon={<Mail className="h-4 w-4" />} label={t("communityDetails.email")} value={admin.email} isRTL={isRTL} />
-                <InfoRow icon={<Phone className="h-4 w-4" />} label={t("communityDetails.phone")} value={admin.mobileNumber} isRTL={isRTL} />
-                <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={admin.housePlot} isRTL={isRTL} />
-                <div className={cn("rounded-xl border border-border/70 bg-background/75 p-3.5 shadow-sm", isRTL && "text-right")}>
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("communityDetails.bio")}</p>
-                  <p className="text-sm text-foreground">{admin.bio || "-"}</p>
-                </div>
-                {admin.isJoined === false && (
-                  <Button
-                    disabled={isResendingInvite}
-                    className="h-11 w-full rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
-                    onClick={handleResendInvite}
-                  >
-                    {isResendingInvite ? t("communityDetails.resendingInvite") : t("communityDetails.resendInvite")}
-                  </Button>
-                )}
+                    <InfoRow icon={<Mail className="h-4 w-4" />} label={t("communityDetails.email")} value={admin.email} isRTL={isRTL} />
+                    <InfoRow icon={<Phone className="h-4 w-4" />} label={t("communityDetails.phone")} value={admin.mobileNumber} isRTL={isRTL} />
+                    <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={admin.housePlot} isRTL={isRTL} />
+                    <div className={cn("rounded-xl border border-border/70 bg-background/75 p-3.5 shadow-sm", isRTL && "text-right")}>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("communityDetails.bio")}</p>
+                      <p className="text-sm text-foreground">{admin.bio || "-"}</p>
+                    </div>
+                    {admin.isJoined === false && (
+                      <Button
+                        disabled={isResendingInvite}
+                        className="h-11 w-full rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
+                        onClick={() => handleResendInvite(admin.email)}
+                      >
+                        {isResendingInvite ? t("communityDetails.resendingInvite") : t("communityDetails.resendInvite")}
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="mt-4 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-                {isAdminMissing
-                  ? t("communityDetails.noAdminAssigned")
-                  : t("communityDetails.adminLoadFailed")}
+                {t("communityDetails.noAdminAssigned")}
               </div>
             )}
 
@@ -925,8 +947,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
         </Card>
       </div>
 
-      {isAdminMissing && (
-        <Card className="group relative overflow-hidden rounded-3xl border border-border/75 bg-card/95 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.62)] transition-all duration-300 hover:border-secondary/35 hover:shadow-[0_24px_52px_-24px_rgba(0,0,0,0.7)] animate-slide-up stagger-3">
+      <Card className="group relative overflow-hidden rounded-3xl border border-border/75 bg-card/95 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.62)] transition-all duration-300 hover:border-secondary/35 hover:shadow-[0_24px_52px_-24px_rgba(0,0,0,0.7)] animate-slide-up stagger-3">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_90%_at_0%_0%,rgba(255,255,255,0.10),rgba(255,255,255,0)_60%)]" />
           <CardContent className="p-5 sm:p-6">
             <div className={cn("mb-5 flex items-start justify-between gap-3", isRTL && "flex-row-reverse")}>
@@ -1065,8 +1086,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
             </div>
 
           </CardContent>
-        </Card>
-      )}
+      </Card>
 
       <Card className="group relative overflow-hidden rounded-3xl border border-border/75 bg-card/95 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.62)] transition-all duration-300 hover:border-secondary/35 hover:shadow-[0_24px_52px_-24px_rgba(0,0,0,0.7)] animate-slide-up stagger-4">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_90%_at_0%_0%,rgba(255,255,255,0.10),rgba(255,255,255,0)_60%)]" />
@@ -1138,16 +1158,14 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                     <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("communityDetails.plot")}</p>
                     <p className="text-xs font-medium text-foreground/80">{member.housePlot || "-"}</p>
                   </div>
-                  {isAdminMissing && (
-                    <Button
-                      size="sm"
-                      disabled={assigningUserId === member.id}
-                      onClick={() => handleAssignAdmin(member.id)}
-                      className="h-8 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-                    >
-                      {assigningUserId === member.id ? t("communityDetails.assigning") : t("communityDetails.assignAsAdmin")}
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    disabled={assigningUserId === member.id}
+                    onClick={() => handleAssignAdmin(member.id)}
+                    className="h-8 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                  >
+                    {assigningUserId === member.id ? t("communityDetails.assigning") : t("communityDetails.assignAsAdmin")}
+                  </Button>
                 </div>
                 )
               })}
