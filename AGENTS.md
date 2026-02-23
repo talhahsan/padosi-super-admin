@@ -9,6 +9,22 @@ Guide for coding agents working in the **Padosi Admin Portal** repository.
 - Package manager: `pnpm`.
 - Main source folders: `app/`, `components/`, `hooks/`, `lib/`.
 
+## 1.1 Next Skills Alignment (vercel-labs/next-skills)
+
+This repo should follow Vercel Next.js Agent Skills conventions.
+
+- Default background skill: `next-best-practices` (treat as always-on for Next.js work).
+- Use `next-upgrade` when changing Next.js versions, codemods, or migration behavior.
+- Use `next-cache-components` when touching Cache Components / PPR / `use cache` behavior.
+- For React-specific performance concerns, additionally use `react-best-practices` from `vercel-labs/agent-skills`.
+
+Recommended setup commands:
+
+- `npx skills add vercel-labs/next-skills --skill next-best-practices`
+- `npx skills add vercel-labs/next-skills --skill next-upgrade`
+- `npx skills add vercel-labs/next-skills --skill next-cache-components`
+- `npx skills add vercel-labs/agent-skills --skill react-best-practices`
+
 ## 2. High-Level Architecture
 
 ### Routing layer (`app/`)
@@ -97,11 +113,12 @@ Rules:
 ## 7. Agent Workflow (Implementation Steps)
 
 1. Read relevant route/component/hook/lib files before editing.
-2. Confirm whether change affects API contract, auth flow, or i18n keys.
-3. Implement the smallest safe change.
-4. Update translations if UI text changes.
-5. Verify manually and with commands in Section 8.
-6. Summarize changed files, behavioral impact, and risks.
+2. Map the task to applicable skills (`next-best-practices` by default; `next-upgrade` / `next-cache-components` when relevant).
+3. Confirm whether change affects API contract, auth flow, i18n keys, or RSC server/client boundaries.
+4. Implement the smallest safe change.
+5. Update translations if UI text changes.
+6. Verify manually and with commands in Section 8.
+7. Summarize changed files, behavioral impact, risks, and any skill-specific checks performed.
 
 ## 8. Validation and Testing
 
@@ -161,12 +178,14 @@ A task is complete only if:
 3. `pnpm exec tsc --noEmit` passes.
 4. Relevant manual flow checks are run.
 5. i18n/RTL/theming impact is handled.
-6. Any env/API contract changes are documented.
+6. Applicable Next.js skills checks are satisfied (file conventions, RSC boundaries, data patterns, and runtime expectations).
+7. Any env/API contract changes are documented.
 
 ## 12. Quick Onboarding for New Agents
 
 1. Read this file.
-2. Read `package.json`, `lib/api.ts`, `lib/auth-context.tsx`, `middleware.ts`.
-3. Read task-specific route and component files.
-4. Implement minimal safe changes.
-5. Run Section 8 validation and summarize outcomes.
+2. Ensure Next.js skills are installed (Section 1.1).
+3. Read `package.json`, `lib/api.ts`, `lib/auth-context.tsx`, `middleware.ts`.
+4. Read task-specific route and component files.
+5. Implement minimal safe changes.
+6. Run Section 8 validation and summarize outcomes.
