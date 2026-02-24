@@ -1092,9 +1092,14 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_90%_at_0%_0%,rgba(255,255,255,0.10),rgba(255,255,255,0)_60%)]" />
         <CardContent className="p-5 sm:p-6">
           <div className={cn("mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between", isRTL && "sm:flex-row-reverse")}>
-            <p className="inline-flex w-fit items-center rounded-md border border-secondary/25 bg-secondary/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-secondary">
-              {t("communityDetails.communityUsers")}
-            </p>
+            <div className={cn("space-y-1", isRTL && "text-right")}>
+              <p className="inline-flex w-fit items-center rounded-md border border-secondary/25 bg-secondary/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-secondary">
+                {t("communityDetails.communityUsers")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("communityDetails.communityUsersAdminNote")}
+              </p>
+            </div>
             <div className="relative w-full sm:max-w-sm">
               <Search className={cn("absolute top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground", isRTL ? "right-3" : "left-3")} />
               <Input
