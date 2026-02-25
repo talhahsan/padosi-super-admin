@@ -170,6 +170,25 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     address: "",
     totalUnits: "",
   })
+
+  async function refreshAdmins(accessToken: string, isCancelled?: () => boolean) {
+    const adminResponse = await fetchCommunityAdminDetails(communityId, accessToken)
+    if (isCancelled?.()) return
+    setAdmins(normalizeCommunityAdmins(adminResponse.data))
+  }
+
+  async function refreshUsers(accessToken: string, isCancelled?: () => boolean) {
+    const response = await fetchCommunityUsers({
+      communityId,
+      token: accessToken,
+      limit: USERS_LIMIT,
+      username: debouncedUsernameSearch || undefined,
+    })
+    if (isCancelled?.()) return
+    setUsers(response.data ?? [])
+    setUsersNextCursor(response.pagination?.nextCursor || null)
+  }
+
   useEffect(() => {
     if (!isAuthenticated) {
       router.push("/login")
@@ -185,12 +204,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     let cancelled = false
     setIsLoadingAdmin(true)
 
-    fetchCommunityAdminDetails(communityId, accessToken)
-      .then((response) => {
-        if (cancelled) return
-        const nextAdmins = normalizeCommunityAdmins(response.data)
-        setAdmins(nextAdmins)
-      })
+    refreshAdmins(accessToken, () => cancelled)
       .catch((error) => {
         const message = error instanceof Error ? error.message : t("communityDetails.fetchAdminFailed")
         if (!cancelled) {
@@ -232,17 +246,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     let cancelled = false
     setIsLoadingUsers(true)
 
-    fetchCommunityUsers({
-      communityId,
-      token: accessToken,
-      limit: USERS_LIMIT,
-      username: debouncedUsernameSearch || undefined,
-    })
-      .then((response) => {
-        if (cancelled) return
-        setUsers(response.data ?? [])
-        setUsersNextCursor(response.pagination?.nextCursor || null)
-      })
+    refreshUsers(accessToken, () => cancelled)
       .catch((error) => {
         const message = error instanceof Error ? error.message : t("communityDetails.fetchUsersFailed")
         if (!cancelled) {
@@ -363,8 +367,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
       const response = await assignCommunityAdmin({ communityId, userId }, accessToken)
       toast.success(response.message || t("communityDetails.assignAdminSuccess"))
 
-      const adminResponse = await fetchCommunityAdminDetails(communityId, accessToken)
-      setAdmins(normalizeCommunityAdmins(adminResponse.data))
+      await Promise.all([refreshAdmins(accessToken), refreshUsers(accessToken)])
     } catch (error) {
       const message = error instanceof Error ? error.message : t("communityDetails.assignAdminFailed")
       toast.error(message)
@@ -463,8 +466,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
       setInvitePictureKey("")
       setInvitePicturePreview(null)
 
-      const adminResponse = await fetchCommunityAdminDetails(communityId, accessToken)
-      setAdmins(normalizeCommunityAdmins(adminResponse.data))
+      await refreshAdmins(accessToken)
     } catch (error) {
       const message = error instanceof Error ? error.message : t("communityDetails.inviteAdminFailed")
       toast.error(message)
@@ -882,9 +884,19 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
               </div>
             ) : admins.length > 0 ? (
               <div className="mt-4 space-y-4">
-                {admins.map((admin) => (
-                  <div key={admin.id || admin.email} className="space-y-3 rounded-2xl border border-border/70 bg-background/45 p-3.5">
-                    <div className={cn("flex items-center gap-3 rounded-2xl border border-border/70 bg-background/75 p-3.5 shadow-sm", isRTL && "flex-row-reverse")}>
+                <div className={cn("flex items-center justify-between rounded-2xl border border-border/70 bg-background/60 px-3.5 py-2.5", isRTL && "flex-row-reverse")}>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("communityDetails.adminDetails")}</p>
+                  <Badge variant="outline" className="rounded-full border-secondary/35 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
+                    {admins.length}
+                  </Badge>
+                </div>
+                <div className="grid gap-4">
+                {admins.map((admin, index) => (
+                  <div
+                    key={admin.id || admin.email}
+                    className="space-y-3 rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background/95 to-secondary/5 p-4 shadow-[0_18px_36px_-24px_rgba(0,0,0,0.6)]"
+                  >
+                    <div className={cn("flex items-center gap-3 rounded-2xl border border-border/70 bg-background/80 p-3.5 shadow-sm", isRTL && "flex-row-reverse")}>
                       <button
                         type="button"
                         onClick={() =>
@@ -906,12 +918,18 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                         <p className="truncate text-sm font-semibold text-foreground">{admin.fullName}</p>
                         <p className="truncate text-xs text-muted-foreground">@{admin.username}</p>
                       </div>
-                      <div className="ml-auto">
+                      <div className={cn("ml-auto flex items-center gap-2", isRTL && "mr-auto ml-0")}>
+                        <Badge variant="outline" className="rounded-full border-border/70 bg-background/70 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                          #{index + 1}
+                        </Badge>
                         <Badge
                           variant="outline"
-                          className={admin.isJoined === false
+                          className={cn(
+                            "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                            admin.isJoined === false
                             ? "border-amber-200 bg-amber-100 text-amber-800"
-                            : "border-emerald-200 bg-emerald-100 text-emerald-800"}
+                            : "border-emerald-200 bg-emerald-100 text-emerald-800",
+                          )}
                         >
                           {admin.isJoined === false ? t("communityDetails.invitePending") : t("communityDetails.joined")}
                         </Badge>
@@ -928,7 +946,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                     {admin.isJoined === false && (
                       <Button
                         disabled={isResendingInvite}
-                        className="h-11 w-full rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
+                        className="h-11 w-full rounded-xl border border-amber-400/45 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 text-amber-950 hover:from-amber-300 hover:via-yellow-200 hover:to-amber-300"
                         onClick={() => handleResendInvite(admin.email)}
                       >
                         {isResendingInvite ? t("communityDetails.resendingInvite") : t("communityDetails.resendInvite")}
@@ -936,6 +954,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                     )}
                   </div>
                 ))}
+                </div>
               </div>
             ) : (
               <div className="mt-4 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
