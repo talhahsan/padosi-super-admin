@@ -61,7 +61,7 @@ const translations: Record<Locale, Record<string, TranslationValue>> = {
     communities: {
       superAdmin: "Super Admin",
       title: "Communities",
-      subtitle: "Manage and view all Padosi communities",
+      subtitle: "Manage all Padosi communities in one place",
       newCommunity: "New Community",
       filterAll: "All",
       filterActive: "Active",
@@ -335,7 +335,7 @@ const translations: Record<Locale, Record<string, TranslationValue>> = {
     communities: {
       superAdmin: "سپر ایڈمن",
       title: "کمیونٹیز",
-      subtitle: "تمام Padosi کمیونٹیز کو دیکھیں اور مینیج کریں",
+      subtitle: "تمام Padosi کمیونٹیز کو ایک جگہ مینیج کریں",
       newCommunity: "نئی کمیونٹی",
       filterAll: "سب",
       filterActive: "فعال",
