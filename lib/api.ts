@@ -95,11 +95,14 @@ export interface CommunityUser {
   username: string | null
   email: string | null
   fullName: string | null
+  name?: string | null
   housePlot: string | null
-  dateOfBirth: string | null
-  gender: string | null
-  bio: string | null
-  interests: string[]
+  phoneNumber?: string | null
+  noOfFamilyMember?: number | null
+  dateOfBirth?: string | null
+  gender?: string | null
+  bio?: string | null
+  interests?: string[]
   profilePicture: string | null
   profilePictureUrl: string | null
 }
@@ -553,6 +556,17 @@ export async function assignCommunityAdmin(
   })
 }
 
+export async function removeCommunityAdmin(
+  payload: { communityId: string; userId: string },
+  token: string,
+): Promise<ApiResponse<unknown>> {
+  return request<ApiResponse<unknown>>("/community/remove-admin", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  })
+}
+
 export async function inviteCommunityAdmin(
   payload: InviteCommunityAdminPayload,
   token: string,
@@ -587,9 +601,44 @@ export async function fetchCommunityUsers(params: {
   if (params.cursor) query.set("cursor", params.cursor)
   if (params.username) query.set("username", params.username)
 
-  return request<CommunityUsersResponse>(`/user/all-users/?${query.toString()}`, {
+  const response = await request<CommunityUsersResponse>(`/user/super-admin/community-users?${query.toString()}`, {
     method: "GET",
     token: params.token,
     cache: "no-store",
+  })
+
+  return {
+    ...response,
+    data: (response.data ?? []).map((user) => ({
+      ...user,
+      fullName: user.fullName ?? user.name ?? null,
+      name: user.name ?? user.fullName ?? null,
+      phoneNumber: user.phoneNumber ?? null,
+      noOfFamilyMember: user.noOfFamilyMember ?? null,
+      dateOfBirth: user.dateOfBirth ?? null,
+      gender: user.gender ?? null,
+      bio: user.bio ?? null,
+      interests: user.interests ?? [],
+    })),
+  }
+}
+
+export async function toggleCommunityUserStatus(
+  userId: string,
+  token: string,
+): Promise<ApiResponse<unknown>> {
+  return request<ApiResponse<unknown>>(`/user/inactive/${userId}`, {
+    method: "PATCH",
+    token,
+  })
+}
+
+export async function deleteCommunityUser(
+  userId: string,
+  token: string,
+): Promise<ApiResponse<unknown>> {
+  return request<ApiResponse<unknown>>(`/user/super-admin/delete/${userId}`, {
+    method: "DELETE",
+    token,
   })
 }
