@@ -359,7 +359,7 @@ export function CommunityList() {
           <Link href="/communities/create-without-admin" className="w-full sm:w-auto">
             <Button variant="outline" className="w-full justify-center rounded-xl border-border/70 font-semibold shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.97] sm:w-auto">
               <Plus className="h-4 w-4" />
-              Create Without Admin
+              {t("header.createWithoutAdmin")}
             </Button>
           </Link>
           <Link href="/communities/create" className="w-full sm:w-auto">
