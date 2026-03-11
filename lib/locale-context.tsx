@@ -5,7 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
+  useState,
   type ReactNode,
 } from "react"
 
@@ -620,6 +620,7 @@ interface LocaleContextType {
 }
 
 const LocaleContext = createContext<LocaleContextType | undefined>(undefined)
+const LOCALE_STORAGE_KEY = "padosi_locale"
 
 function resolveTranslation(locale: Locale, key: string): string | undefined {
   const parts = key.split(".")
@@ -639,30 +640,39 @@ function interpolate(template: string, params?: Record<string, string | number>)
 }
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const locale: Locale = "en"
-  const setLocale = useCallback(() => {
-    // Locale switching is disabled; app runs in English only.
+  const [locale, setLocaleState] = useState<Locale>("en")
+  const isRTL = locale === "ur"
+
+  const setLocale = useCallback((nextLocale: Locale) => {
+    setLocaleState(nextLocale)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale)
+    }
+  }, [])
+
+  useEffect(() => {
+    const storedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY)
+    if (storedLocale === "en" || storedLocale === "ur") {
+      setLocaleState(storedLocale)
+    }
   }, [])
 
   useEffect(() => {
     const html = document.documentElement
-    html.lang = "en"
-    html.dir = "ltr"
-    html.classList.remove("rtl")
-  }, [])
+    html.lang = locale
+    html.dir = isRTL ? "rtl" : "ltr"
+    html.classList.toggle("rtl", isRTL)
+  }, [isRTL, locale])
 
-  const value = useMemo<LocaleContextType>(
-    () => ({
-      locale,
-      isRTL: false,
-      setLocale,
-      t: (key, params) => {
-        const localized = resolveTranslation("en", key) ?? key
-        return interpolate(localized, params)
-      },
-    }),
-    [locale, setLocale],
-  )
+  const value: LocaleContextType = {
+    locale,
+    isRTL,
+    setLocale,
+    t: (key, params) => {
+      const localized = resolveTranslation(locale, key) ?? resolveTranslation("en", key) ?? key
+      return interpolate(localized, params)
+    },
+  }
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
 }
