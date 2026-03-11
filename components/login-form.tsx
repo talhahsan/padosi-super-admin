@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import Image from "next/image"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -69,9 +70,11 @@ export function LoginForm() {
   return (
     <Card className="gradient-surface w-full border border-border/70 shadow-xl">
       <CardHeader className="items-center gap-2 px-8 pt-8 pb-2">
-        <img
+        <Image
           src="/padosi-logo.svg"
           alt="Padosi logo"
+          width={160}
+          height={56}
           className="h-14 w-auto animate-slide-up"
         />
         <CardTitle className="sr-only">Padosi Super Admin</CardTitle>
