@@ -10,11 +10,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  if (pathname === "/login" && hasAuthState) {
-    const communitiesUrl = new URL("/communities", request.url)
-    return NextResponse.redirect(communitiesUrl)
-  }
-
   return NextResponse.next()
 }
 
