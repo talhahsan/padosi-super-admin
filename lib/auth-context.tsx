@@ -30,7 +30,8 @@ interface StoredAuthSession {
 
 function writeAuthStateCookie() {
   if (typeof document === "undefined") return
-  document.cookie = `${AUTH_STATE_COOKIE}=1; Path=/; SameSite=Lax`
+  const secure = window.location.protocol === "https:" ? "; Secure" : ""
+  document.cookie = `${AUTH_STATE_COOKIE}=1; Path=/; SameSite=Lax${secure}`
 }
 
 function clearAuthStateCookie() {
@@ -58,10 +59,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             refreshToken: "",
           })
           writeAuthStateCookie()
+        } else {
+          clearAuthStateCookie()
         }
+      } else {
+        clearAuthStateCookie()
       }
     } catch {
       sessionStorage.removeItem(AUTH_STORAGE_KEY)
+      clearAuthStateCookie()
     }
     setMounted(true)
 
