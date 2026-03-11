@@ -8,8 +8,6 @@ import { Building2, Loader2, LogOut, Menu, Plus, ShieldCheck } from "lucide-reac
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { LanguageToggle } from "@/components/language-toggle"
 import { useLocale } from "@/lib/locale-context"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
@@ -79,15 +77,6 @@ export function DashboardHeader() {
               </nav>
 
               <div className={cn("hidden shrink-0 items-center gap-2 lg:flex", isRTL && "flex-row-reverse")}>
-                <LanguageToggle
-                  className="h-10 border-primary-foreground/35 bg-primary-foreground/10 text-primary-foreground ring-primary-foreground/25"
-                  activeClassName="bg-primary-foreground text-primary"
-                  inactiveClassName="text-primary-foreground/85 hover:bg-primary-foreground/15 hover:text-primary-foreground"
-                />
-                <ThemeToggle
-                  iconOnly
-                  className="h-10 w-10 rounded-xl border-primary-foreground/35 bg-primary-foreground/10 text-primary-foreground ring-primary-foreground/25 hover:bg-primary-foreground/20 hover:text-primary-foreground"
-                />
                 <Button
                   variant="ghost"
                   onClick={logout}
@@ -104,15 +93,6 @@ export function DashboardHeader() {
               </div>
 
               <div className={cn("flex shrink-0 items-center gap-2 lg:hidden", isRTL && "flex-row-reverse")}>
-                <LanguageToggle
-                  className="h-10 border-primary-foreground/35 bg-primary-foreground/10 text-primary-foreground ring-primary-foreground/25"
-                  activeClassName="bg-primary-foreground text-primary"
-                  inactiveClassName="text-primary-foreground/85 hover:bg-primary-foreground/15 hover:text-primary-foreground"
-                />
-                <ThemeToggle
-                  iconOnly
-                  className="h-10 w-10 rounded-xl border-primary-foreground/35 bg-primary-foreground/10 text-primary-foreground ring-primary-foreground/25 hover:bg-primary-foreground/20 hover:text-primary-foreground"
-                />
                 <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                   <SheetTrigger asChild>
                     <Button

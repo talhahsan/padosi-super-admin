@@ -885,76 +885,108 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
             ) : admins.length > 0 ? (
               <div className="mt-4 space-y-4">
                 <div className={cn("flex items-center justify-between rounded-2xl border border-border/70 bg-background/60 px-3.5 py-2.5", isRTL && "flex-row-reverse")}>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("communityDetails.adminDetails")}</p>
-                  <Badge variant="outline" className="rounded-full border-secondary/35 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
-                    {admins.length}
-                  </Badge>
-                </div>
-                <div className="grid gap-4">
-                {admins.map((admin, index) => (
-                  <div
-                    key={admin.id || admin.email}
-                    className="space-y-3 rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background/95 to-secondary/5 p-4 shadow-[0_18px_36px_-24px_rgba(0,0,0,0.6)]"
-                  >
-                    <div className={cn("flex items-center gap-3 rounded-2xl border border-border/70 bg-background/80 p-3.5 shadow-sm", isRTL && "flex-row-reverse")}>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openMediaViewer(
-                            admin.profilePictureUrl || null,
-                            admin.fullName || t("communityDetails.adminPhoto"),
-                            getInitials(admin.fullName || admin.username || "Admin"),
-                          )
-                        }
-                        className="rounded-full transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/60"
-                        aria-label={t("communityDetails.viewAdminProfilePicture")}
-                      >
-                        <Avatar className="h-12 w-12 border border-border/70 ring-2 ring-background">
-                          <AvatarImage src={admin.profilePictureUrl || undefined} alt={admin.fullName} />
-                          <AvatarFallback>{getInitials(admin.fullName || admin.username || "Admin")}</AvatarFallback>
-                        </Avatar>
-                      </button>
-                      <div className={cn("min-w-0", isRTL && "text-right")}>
-                        <p className="truncate text-sm font-semibold text-foreground">{admin.fullName}</p>
-                        <p className="truncate text-xs text-muted-foreground">@{admin.username}</p>
-                      </div>
-                      <div className={cn("ml-auto flex items-center gap-2", isRTL && "mr-auto ml-0")}>
-                        <Badge variant="outline" className="rounded-full border-border/70 bg-background/70 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                          #{index + 1}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
-                            admin.isJoined === false
-                            ? "border-amber-200 bg-amber-100 text-amber-800"
-                            : "border-emerald-200 bg-emerald-100 text-emerald-800",
-                          )}
-                        >
-                          {admin.isJoined === false ? t("communityDetails.invitePending") : t("communityDetails.joined")}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <InfoRow icon={<Mail className="h-4 w-4" />} label={t("communityDetails.email")} value={admin.email} isRTL={isRTL} />
-                    <InfoRow icon={<Phone className="h-4 w-4" />} label={t("communityDetails.phone")} value={admin.mobileNumber} isRTL={isRTL} />
-                    <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={admin.housePlot} isRTL={isRTL} />
-                    <div className={cn("rounded-xl border border-border/70 bg-background/75 p-3.5 shadow-sm", isRTL && "text-right")}>
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("communityDetails.bio")}</p>
-                      <p className="text-sm text-foreground">{admin.bio || "-"}</p>
-                    </div>
-                    {admin.isJoined === false && (
-                      <Button
-                        disabled={isResendingInvite}
-                        className="h-11 w-full rounded-xl border border-amber-400/45 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 text-amber-950 hover:from-amber-300 hover:via-yellow-200 hover:to-amber-300"
-                        onClick={() => handleResendInvite(admin.email)}
-                      >
-                        {isResendingInvite ? t("communityDetails.resendingInvite") : t("communityDetails.resendInvite")}
-                      </Button>
-                    )}
+                  <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("communityDetails.adminDetails")}</p>
+                    <Badge variant="outline" className="rounded-full border-secondary/35 bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary">
+                      {admins.length}
+                    </Badge>
                   </div>
-                ))}
+                  <div className={cn("hidden items-center -space-x-2 sm:flex", isRTL && "space-x-reverse")}>
+                    {admins.slice(0, 4).map((admin) => (
+                      <Avatar key={`stack-${admin.id || admin.email}`} className="h-7 w-7 border-2 border-background">
+                        <AvatarImage src={admin.profilePictureUrl || undefined} alt={admin.fullName} />
+                        <AvatarFallback>{getInitials(admin.fullName || admin.username || "Admin")}</AvatarFallback>
+                      </Avatar>
+                    ))}
+                  </div>
                 </div>
+
+                {(() => {
+                  const primaryAdmin = admins[0]
+                  const secondaryAdmins = admins.slice(1)
+                  return (
+                    <>
+                      <div className="space-y-3 rounded-2xl border border-secondary/35 bg-gradient-to-br from-secondary/10 via-background/95 to-background p-4">
+                        <div className={cn("flex items-center gap-3", isRTL && "flex-row-reverse")}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openMediaViewer(
+                                primaryAdmin.profilePictureUrl || null,
+                                primaryAdmin.fullName || t("communityDetails.adminPhoto"),
+                                getInitials(primaryAdmin.fullName || primaryAdmin.username || "Admin"),
+                              )
+                            }
+                            className="rounded-full transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/60"
+                            aria-label={t("communityDetails.viewAdminProfilePicture")}
+                          >
+                            <Avatar className="h-12 w-12 border border-border/70 ring-2 ring-background">
+                              <AvatarImage src={primaryAdmin.profilePictureUrl || undefined} alt={primaryAdmin.fullName} />
+                              <AvatarFallback>{getInitials(primaryAdmin.fullName || primaryAdmin.username || "Admin")}</AvatarFallback>
+                            </Avatar>
+                          </button>
+                          <div className={cn("min-w-0 flex-1", isRTL && "text-right")}>
+                            <p className="truncate text-sm font-semibold text-foreground">{primaryAdmin.fullName}</p>
+                            <p className="truncate text-xs text-muted-foreground">@{primaryAdmin.username}</p>
+                          </div>
+                          <Badge variant="outline" className="rounded-full border-secondary/35 bg-secondary/10 px-2.5 py-0.5 text-[11px] font-semibold text-secondary">
+                            {t("communityDetails.primaryAdmin")}
+                          </Badge>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <InfoRow icon={<Mail className="h-4 w-4" />} label={t("communityDetails.email")} value={primaryAdmin.email} isRTL={isRTL} />
+                          <InfoRow icon={<Phone className="h-4 w-4" />} label={t("communityDetails.phone")} value={primaryAdmin.mobileNumber} isRTL={isRTL} />
+                        </div>
+                      </div>
+
+                      {secondaryAdmins.length > 0 && (
+                        <div className="space-y-2.5">
+                          <p className={cn("text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground", isRTL && "text-right")}>
+                            {t("communityDetails.otherAdmins")}
+                          </p>
+                          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                            {secondaryAdmins.map((admin) => (
+                              <div key={admin.id || admin.email} className={cn("flex items-center gap-3 rounded-xl border border-border/70 bg-background/85 p-3", isRTL && "flex-row-reverse")}>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openMediaViewer(
+                                      admin.profilePictureUrl || null,
+                                      admin.fullName || t("communityDetails.adminPhoto"),
+                                      getInitials(admin.fullName || admin.username || "Admin"),
+                                    )
+                                  }
+                                  className="rounded-full transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/60"
+                                  aria-label={t("communityDetails.viewAdminProfilePicture")}
+                                >
+                                  <Avatar className="h-9 w-9 border border-border/70 ring-2 ring-background">
+                                    <AvatarImage src={admin.profilePictureUrl || undefined} alt={admin.fullName} />
+                                    <AvatarFallback>{getInitials(admin.fullName || admin.username || "Admin")}</AvatarFallback>
+                                  </Avatar>
+                                </button>
+                                <div className={cn("min-w-0 flex-1", isRTL && "text-right")}>
+                                  <p className="truncate text-sm font-medium text-foreground">{admin.fullName}</p>
+                                  <p className="truncate text-xs text-muted-foreground">{admin.email}</p>
+                                </div>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                                    admin.isJoined === false
+                                      ? "border-amber-200 bg-amber-100 text-amber-800"
+                                      : "border-emerald-200 bg-emerald-100 text-emerald-800",
+                                  )}
+                                >
+                                  {admin.isJoined === false ? t("communityDetails.invitePending") : t("communityDetails.joined")}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
             ) : (
               <div className="mt-4 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">

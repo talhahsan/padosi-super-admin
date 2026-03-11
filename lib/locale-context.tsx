@@ -6,7 +6,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
   type ReactNode,
 } from "react"
 
@@ -17,8 +16,6 @@ interface TranslationObject {
 }
 
 type TranslationValue = string | TranslationObject
-
-const STORAGE_KEY = "padosi_locale"
 
 const translations: Record<Locale, Record<string, TranslationValue>> = {
   en: {
@@ -268,6 +265,11 @@ const translations: Record<Locale, Record<string, TranslationValue>> = {
       fetchMoreUsersFailed: "Failed to fetch more users",
       assignAdminFailed: "Failed to assign admin.",
       assignAdminSuccess: "Admin assigned successfully.",
+      primaryAdmin: "Primary Admin",
+      otherAdmins: "Other Admins",
+      showAllAdmins: "Show all admins",
+      showLessAdmins: "Show less",
+      moreAdmins: "{count} more admins",
       imageTypesOnly: "Only PNG, JPG, JPEG, and WEBP images are allowed.",
       imageMaxSize: "Image must be 5MB or smaller.",
       uploadLoginRequired: "You must be logged in.",
@@ -542,6 +544,11 @@ const translations: Record<Locale, Record<string, TranslationValue>> = {
       fetchMoreUsersFailed: "مزید یوزرز حاصل نہیں ہو سکے",
       assignAdminFailed: "ایڈمن تفویض نہیں ہو سکا۔",
       assignAdminSuccess: "ایڈمن کامیابی سے تفویض ہو گیا۔",
+      primaryAdmin: "بنیادی ایڈمن",
+      otherAdmins: "دیگر ایڈمنز",
+      showAllAdmins: "تمام ایڈمنز دکھائیں",
+      showLessAdmins: "کم دکھائیں",
+      moreAdmins: "{count} مزید ایڈمنز",
       imageTypesOnly: "صرف PNG، JPG، JPEG، اور WEBP تصاویر کی اجازت ہے۔",
       imageMaxSize: "تصویر 5MB یا اس سے کم ہونی چاہیے۔",
       uploadLoginRequired: "لاگ اِن ہونا ضروری ہے۔",
@@ -598,45 +605,31 @@ function interpolate(template: string, params?: Record<string, string | number>)
 }
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("en")
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored === "en" || stored === "ur") {
-      setLocaleState(stored)
-    }
-    setMounted(true)
-  }, [])
-
-  const setLocale = useCallback((nextLocale: Locale) => {
-    setLocaleState(nextLocale)
-    localStorage.setItem(STORAGE_KEY, nextLocale)
+  const locale: Locale = "en"
+  const setLocale = useCallback(() => {
+    // Locale switching is disabled; app runs in English only.
   }, [])
 
   useEffect(() => {
-    if (!mounted) return
     const html = document.documentElement
-    const isRTL = locale === "ur"
-    html.lang = locale
-    html.dir = isRTL ? "rtl" : "ltr"
-    html.classList.toggle("rtl", isRTL)
-  }, [locale, mounted])
+    html.lang = "en"
+    html.dir = "ltr"
+    html.classList.remove("rtl")
+  }, [])
 
   const value = useMemo<LocaleContextType>(
     () => ({
       locale,
-      isRTL: locale === "ur",
+      isRTL: false,
       setLocale,
       t: (key, params) => {
-        const localized = resolveTranslation(locale, key) ?? resolveTranslation("en", key) ?? key
+        const localized = resolveTranslation("en", key) ?? key
         return interpolate(localized, params)
       },
     }),
     [locale, setLocale],
   )
 
-  if (!mounted) return null
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
 }
 

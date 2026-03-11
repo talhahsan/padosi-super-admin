@@ -1,20 +1,13 @@
 "use client"
 
 import { LoginForm } from "@/components/login-form"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { LanguageToggle } from "@/components/language-toggle"
 import { useLocale } from "@/lib/locale-context"
-import { cn } from "@/lib/utils"
 
 export default function LoginPage() {
-  const { t, isRTL } = useLocale()
+  const { t } = useLocale()
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-muted px-4 py-12">
-      <div className={cn("absolute top-4 z-20 flex items-center gap-2 sm:top-6", isRTL ? "left-4 sm:left-6" : "right-4 sm:right-6")}>
-        <LanguageToggle className="border-border/85 bg-background/95" />
-        <ThemeToggle className="rounded-xl border-border/85 bg-background/95 backdrop-blur-sm hover:bg-muted/60" />
-      </div>
       <div className="pointer-events-none absolute -left-28 top-12 h-64 w-64 rounded-full bg-secondary/20 blur-3xl animate-drift" />
       <div className="pointer-events-none absolute -right-24 bottom-10 h-72 w-72 rounded-full bg-accent/25 blur-3xl animate-float-soft" />
 
