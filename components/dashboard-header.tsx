@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Building2, Loader2, LogOut, Menu, Plus, ShieldCheck } from "lucide-react"
@@ -44,9 +45,11 @@ export function DashboardHeader() {
             <div className={cn("flex items-center justify-between gap-3", isRTL && "flex-row-reverse")}>
               <Link href="/communities" className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-primary-foreground/25 bg-primary-foreground/10 px-2.5 py-2 shadow-inner shadow-black/10 ring-1 ring-primary-foreground/15 transition-all duration-300 hover:-translate-y-[1px] hover:bg-primary-foreground/15">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-foreground/15 ring-1 ring-primary-foreground/25 transition-all duration-300 group-hover:scale-105 group-hover:bg-primary-foreground/20">
-                  <img
+                  <Image
                     src="/padosi-logo.svg"
                     alt="Padosi logo"
+                    width={24}
+                    height={24}
                     className="h-6 w-auto transition-transform duration-300 group-hover:scale-110"
                   />
                 </div>
