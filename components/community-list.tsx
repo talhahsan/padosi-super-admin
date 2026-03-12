@@ -356,12 +356,6 @@ export function CommunityList() {
           </p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-          <Link href="/communities/create-without-admin" className="w-full sm:w-auto">
-            <Button variant="outline" className="w-full justify-center rounded-xl border-border/70 font-semibold shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.97] sm:w-auto">
-              <Plus className="h-4 w-4" />
-              {t("header.createWithoutAdmin")}
-            </Button>
-          </Link>
           <Link href="/communities/create" className="w-full sm:w-auto">
             <Button className="w-full justify-center rounded-xl bg-accent text-accent-foreground hover:bg-accent/90 font-semibold shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.97] sm:w-auto">
               <Plus className="h-4 w-4" />
@@ -438,7 +432,7 @@ export function CommunityList() {
 
       {/* Loading State */}
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:auto-rows-fr xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:auto-rows-fr xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className={`h-full animate-fade-in stagger-${Math.min(i + 1, 12)}`}>
               <SkeletonCommunityCard />
@@ -473,7 +467,7 @@ export function CommunityList() {
           <div className={cn(
             "grid gap-4",
             viewMode === "grid"
-              ? "grid-cols-1 sm:grid-cols-2 sm:auto-rows-fr xl:grid-cols-3 2xl:grid-cols-4"
+              ? "grid-cols-1 sm:grid-cols-2 sm:auto-rows-fr xl:grid-cols-3"
               : "grid-cols-1",
           )}>
             {communities.map((community, index) => (
@@ -900,23 +894,35 @@ function CommunityCard({
         </div>
 
         {/* Stats */}
-        <div className={cn("relative flex items-center gap-3 rounded-xl border border-border/60 bg-background/65 p-2.5 text-sm text-muted-foreground shadow-inner shadow-black/5", isRTL && "justify-end", compact && "flex-wrap")}>
-          <div className={cn("inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background/75 px-2 py-1", isRTL && "flex-row-reverse")}>
-            <Users className="h-3.5 w-3.5" />
-            <span>{community.memberCount} {t("communities.members")}</span>
-          </div>
-          <div className={cn("inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background/75 px-2 py-1", isRTL && "flex-row-reverse")}>
-            <Home className="h-3.5 w-3.5" />
-            <span>{community.totalUnits} {t("communities.units")}</span>
+        <div className="relative">
+          <div className="rounded-2xl border border-border/65 bg-background/60 p-2.5 shadow-inner shadow-black/5">
+            <div className="grid grid-cols-2 gap-2">
+              <div className={cn("rounded-xl border border-border/65 bg-background/85 px-3 py-2.5", isRTL && "text-right")}>
+                <div className={cn("mb-1.5 inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-muted-foreground", isRTL && "flex-row-reverse")}>
+                  <Users className="h-3.5 w-3.5" />
+                  <span>{t("communities.members")}</span>
+                </div>
+                <p className="text-xl font-semibold tabular-nums leading-none text-foreground">{community.memberCount}</p>
+              </div>
+              <div className={cn("rounded-xl border border-border/65 bg-background/85 px-3 py-2.5", isRTL && "text-right")}>
+                <div className={cn("mb-1.5 inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-muted-foreground", isRTL && "flex-row-reverse")}>
+                  <Home className="h-3.5 w-3.5" />
+                  <span>{t("communities.units")}</span>
+                </div>
+                <p className="text-xl font-semibold tabular-nums leading-none text-foreground">{community.totalUnits}</p>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Address */}
         <div className={cn("relative", compact ? "min-h-0" : "min-h-5")}>
           {community.address && (
-            <div className={cn("inline-flex items-start gap-1.5 rounded-md border border-border/50 bg-background/55 px-2.5 py-1.5 text-sm text-muted-foreground", isRTL && "flex-row-reverse text-right")}>
-              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span className="line-clamp-1">{community.address}</span>
+            <div className={cn("flex items-center gap-2.5 rounded-xl border border-border/65 bg-background/68 px-3 py-2.5 text-sm text-foreground/90 shadow-inner shadow-black/5", isRTL && "flex-row-reverse text-right")}>
+              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-secondary/30 bg-secondary/10 text-secondary">
+                <MapPin className="h-3.5 w-3.5" />
+              </span>
+              <span className="line-clamp-1 font-medium">{community.address}</span>
             </div>
           )}
         </div>
