@@ -4,7 +4,7 @@ import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2, Loader2, LogOut, Menu, Plus, ShieldCheck } from "lucide-react"
+import { Building2, Loader2, LogOut, Menu, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
@@ -20,12 +20,10 @@ export function DashboardHeader() {
   const navLinks = [
     { href: "/communities", label: t("header.communities"), icon: Building2 },
     { href: "/communities/create", label: t("header.createCommunity"), icon: Plus },
-    { href: "/communities/create-without-admin", label: t("header.createWithoutAdmin"), icon: ShieldCheck },
   ]
 
   function isLinkActive(href: string) {
     if (href === "/communities/create") return pathname === href
-    if (href === "/communities/create-without-admin") return pathname === href
     if (href === "/communities") {
       return pathname === href || (pathname.startsWith("/communities/") && !pathname.startsWith("/communities/create"))
     }
