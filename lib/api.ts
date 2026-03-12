@@ -103,8 +103,10 @@ export interface CommunityUser {
   gender?: string | null
   bio?: string | null
   interests?: string[]
+  role?: string | null
   profilePicture: string | null
   profilePictureUrl: string | null
+  isDeleted?: boolean
 }
 
 interface CommunityUsersResponse {
@@ -113,6 +115,32 @@ interface CommunityUsersResponse {
   code: number
   data: CommunityUser[]
   pagination: CursorPagination
+}
+
+export interface ExecutiveMember {
+  assignmentId: string
+  userId: string
+  name: string | null
+  username: string | null
+  phoneNumber: string | null
+  email: string | null
+  profilePicture: string | null
+  profilePictureUrl: string | null
+  housePlot: string | null
+  role: string | null
+  assignedAt: string | null
+}
+
+interface ExecutiveMembersResponse {
+  success: boolean
+  message: string
+  code: number
+  data: ExecutiveMember[]
+  pagination: CursorPagination
+  meta?: {
+    status?: string | null
+    rejectionReason?: string | null
+  }
 }
 
 export interface CreateCommunityPayload {
@@ -593,13 +621,13 @@ export async function fetchCommunityUsers(params: {
   token: string
   limit?: number
   cursor?: string
-  username?: string
+  search?: string
 }): Promise<CommunityUsersResponse> {
   const query = new URLSearchParams()
   query.set("communityId", params.communityId)
   if (params.limit) query.set("limit", String(params.limit))
   if (params.cursor) query.set("cursor", params.cursor)
-  if (params.username) query.set("username", params.username)
+  if (params.search) query.set("search", params.search)
 
   const response = await request<CommunityUsersResponse>(`/user/super-admin/community-users?${query.toString()}`, {
     method: "GET",
@@ -619,7 +647,47 @@ export async function fetchCommunityUsers(params: {
       gender: user.gender ?? null,
       bio: user.bio ?? null,
       interests: user.interests ?? [],
+      role: user.role ?? null,
+      isDeleted: Boolean(user.isDeleted),
     })),
+  }
+}
+
+export async function fetchExecutiveMembers(params: {
+  communityId: string
+  token: string
+  limit?: number
+  cursor?: string
+}): Promise<ExecutiveMembersResponse> {
+  const query = new URLSearchParams()
+  query.set("communityId", params.communityId)
+  if (params.limit) query.set("limit", String(params.limit))
+  if (params.cursor) query.set("cursor", params.cursor)
+
+  const response = await request<ExecutiveMembersResponse>(`/community/executive-members?${query.toString()}`, {
+    method: "GET",
+    token: params.token,
+    cache: "no-store",
+  })
+
+  return {
+    ...response,
+    data: (response.data ?? []).map((member) => ({
+      ...member,
+      name: member.name ?? null,
+      username: member.username ?? null,
+      phoneNumber: member.phoneNumber ?? null,
+      email: member.email ?? null,
+      profilePicture: member.profilePicture ?? null,
+      profilePictureUrl: member.profilePictureUrl ?? null,
+      housePlot: member.housePlot ?? null,
+      role: member.role ?? null,
+      assignedAt: member.assignedAt ?? null,
+    })),
+    meta: {
+      status: response.meta?.status ?? null,
+      rejectionReason: response.meta?.rejectionReason ?? null,
+    },
   }
 }
 
