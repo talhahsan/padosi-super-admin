@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Building2, Loader2, Mail, MapPin, PencilLine, Phone, Search, Trash2, Upload, User, UserCircle2, X } from "lucide-react"
@@ -33,6 +33,7 @@ import {
   type Community,
   deleteCommunityUser,
   fetchCommunityAdminDetails,
+  fetchExecutiveMembers,
   fetchCommunityUsers,
   getPreSignUrl,
   inviteCommunityAdmin,
@@ -45,6 +46,7 @@ import {
   uploadFileToPresignUrl,
   type CommunityAdminDetails,
   type CommunityUser,
+  type ExecutiveMember,
   toggleCommunityUserStatus,
 } from "@/lib/api"
 import { useLocale } from "@/lib/locale-context"
@@ -52,6 +54,7 @@ import { cn } from "@/lib/utils"
 
 const COMMUNITY_DETAILS_CACHE_KEY = "padosi_selected_community"
 const USERS_LIMIT = 10
+const EXECUTIVE_MEMBERS_LIMIT = 10
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
@@ -97,6 +100,28 @@ function getStatusColor(status: string) {
     default:
       return "bg-muted text-muted-foreground border-border"
   }
+}
+
+function formatRoleLabel(role: string | null | undefined): string {
+  if (!role) return "-"
+
+  const ROLE_LABELS: Record<string, string> = {
+    PRESIDENT: "President",
+    FINANCE_MANAGER: "Finance Manager",
+    GENERAL_SECRETARY: "General Secretary",
+    SPOKE_PERSON: "Spokesperson",
+  }
+
+  const normalized = role.trim().toUpperCase()
+  if (ROLE_LABELS[normalized]) {
+    return ROLE_LABELS[normalized]
+  }
+
+  return normalized
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+    .join(" ")
 }
 
 function normalizeCommunityAdmins(payload: unknown): CommunityAdminDetails[] {
@@ -160,6 +185,16 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
   const [invitePicturePreview, setInvitePicturePreview] = useState<string | null>(null)
   const [isUploadingInvitePicture, setIsUploadingInvitePicture] = useState(false)
   const [isInvitingAdmin, setIsInvitingAdmin] = useState(false)
+  const [selectedAdmin, setSelectedAdmin] = useState<CommunityAdminDetails | null>(null)
+  const [isAdminDetailsOpen, setIsAdminDetailsOpen] = useState(false)
+  const [selectedExecutive, setSelectedExecutive] = useState<ExecutiveMember | null>(null)
+  const [isExecutiveDetailsOpen, setIsExecutiveDetailsOpen] = useState(false)
+  const [executiveMembers, setExecutiveMembers] = useState<ExecutiveMember[]>([])
+  const [executiveNextCursor, setExecutiveNextCursor] = useState<string | null>(null)
+  const [executiveStatus, setExecutiveStatus] = useState<string | null>(null)
+  const [executiveRejectionReason, setExecutiveRejectionReason] = useState<string | null>(null)
+  const [isLoadingExecutiveMembers, setIsLoadingExecutiveMembers] = useState(true)
+  const [isLoadingMoreExecutiveMembers, setIsLoadingMoreExecutiveMembers] = useState(false)
   const [users, setUsers] = useState<CommunityUser[]>([])
   const [usersNextCursor, setUsersNextCursor] = useState<string | null>(null)
   const [isLoadingUsers, setIsLoadingUsers] = useState(true)
@@ -170,6 +205,8 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isUpdatingCommunity, setIsUpdatingCommunity] = useState(false)
   const [isDeletingCommunity, setIsDeletingCommunity] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<CommunityUser | null>(null)
+  const [isUserDetailsOpen, setIsUserDetailsOpen] = useState(false)
   const [mediaViewer, setMediaViewer] = useState<{
     open: boolean
     src: string | null
@@ -199,10 +236,24 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
       communityId,
       token: accessToken,
       limit: USERS_LIMIT,
+      search: debouncedUsernameSearch || undefined,
     })
     if (isCancelled?.()) return
     setUsers(response.data ?? [])
     setUsersNextCursor(response.pagination?.nextCursor || null)
+  }
+
+  async function refreshExecutiveMembers(accessToken: string, isCancelled?: () => boolean) {
+    const response = await fetchExecutiveMembers({
+      communityId,
+      token: accessToken,
+      limit: EXECUTIVE_MEMBERS_LIMIT,
+    })
+    if (isCancelled?.()) return
+    setExecutiveMembers(response.data ?? [])
+    setExecutiveNextCursor(response.pagination?.nextCursor || null)
+    setExecutiveStatus(response.meta?.status ?? null)
+    setExecutiveRejectionReason(response.meta?.rejectionReason ?? null)
   }
 
   useEffect(() => {
@@ -243,6 +294,31 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
   }, [communityId, tokens?.accessToken])
 
   useEffect(() => {
+    const accessToken = resolveAccessToken(tokens?.accessToken)
+    if (!accessToken) return
+
+    let cancelled = false
+    setIsLoadingExecutiveMembers(true)
+
+    refreshExecutiveMembers(accessToken, () => cancelled)
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : t("communityDetails.fetchExecutiveMembersFailed")
+        if (!cancelled) {
+          toast.error(message)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingExecutiveMembers(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [communityId, tokens?.accessToken, t])
+
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedUsernameSearch(usernameSearch.trim())
     }, 350)
@@ -272,7 +348,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     return () => {
       cancelled = true
     }
-  }, [communityId, tokens?.accessToken])
+  }, [communityId, debouncedUsernameSearch, tokens?.accessToken])
 
   useEffect(() => {
     if (!community) return
@@ -284,25 +360,25 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     })
   }, [community?.address, community?.description, community?.id, community?.name, community?.totalUnits])
 
+  useEffect(() => {
+    if (!selectedAdmin) return
+    const updatedSelectedAdmin = admins.find((admin) => admin.id === selectedAdmin.id)
+    if (updatedSelectedAdmin) {
+      setSelectedAdmin(updatedSelectedAdmin)
+    }
+  }, [admins, selectedAdmin])
+
+  useEffect(() => {
+    if (!selectedUser) return
+    const updatedSelectedUser = users.find((user) => user.id === selectedUser.id)
+    if (updatedSelectedUser) {
+      setSelectedUser(updatedSelectedUser)
+    }
+  }, [selectedUser, users])
+
   const hasAssignedAdmin = admins.length > 0
 
-  const filteredUsers = useMemo(() => {
-    const query = debouncedUsernameSearch.trim().toLowerCase()
-    if (!query) return users
-
-    return users.filter((member) => {
-      const haystacks = [
-        member.fullName,
-        member.name,
-        member.username,
-        member.email,
-        member.phoneNumber,
-        member.housePlot,
-      ]
-
-      return haystacks.some((value) => value?.toLowerCase().includes(query))
-    })
-  }, [debouncedUsernameSearch, users])
+  const filteredUsers = users
 
   const communityMeta = useMemo(() => {
     if (!community) return []
@@ -329,6 +405,42 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
       title,
       initials: initials || t("communityDetails.na"),
     })
+  }
+
+  function openUserDetails(member: CommunityUser) {
+    setSelectedUser(member)
+    setIsUserDetailsOpen(true)
+  }
+
+  function openAdminDetails(admin: CommunityAdminDetails) {
+    setSelectedAdmin(admin)
+    setIsAdminDetailsOpen(true)
+  }
+
+  function openExecutiveDetails(member: ExecutiveMember) {
+    setSelectedExecutive(member)
+    setIsExecutiveDetailsOpen(true)
+  }
+
+  function handleUserCardKeyDown(event: KeyboardEvent<HTMLDivElement>, member: CommunityUser) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault()
+      openUserDetails(member)
+    }
+  }
+
+  function handleAdminCardKeyDown(event: KeyboardEvent<HTMLDivElement>, admin: CommunityAdminDetails) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault()
+      openAdminDetails(admin)
+    }
+  }
+
+  function handleExecutiveCardKeyDown(event: KeyboardEvent<HTMLDivElement>, member: ExecutiveMember) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault()
+      openExecutiveDetails(member)
+    }
   }
 
   async function handleResendInvite(email: string) {
@@ -368,6 +480,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
         token: accessToken,
         limit: USERS_LIMIT,
         cursor: usersNextCursor,
+        search: debouncedUsernameSearch || undefined,
       })
 
       setUsers((previous) => {
@@ -381,6 +494,35 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
       toast.error(message)
     } finally {
       setIsLoadingMoreUsers(false)
+    }
+  }
+
+  async function handleLoadMoreExecutiveMembers() {
+    const accessToken = resolveAccessToken(tokens?.accessToken)
+    if (!accessToken || !executiveNextCursor) return
+
+    setIsLoadingMoreExecutiveMembers(true)
+    try {
+      const response = await fetchExecutiveMembers({
+        communityId,
+        token: accessToken,
+        limit: EXECUTIVE_MEMBERS_LIMIT,
+        cursor: executiveNextCursor,
+      })
+
+      setExecutiveMembers((previous) => {
+        const existingAssignmentIds = new Set(previous.map((item) => item.assignmentId))
+        const incoming = response.data.filter((item) => !existingAssignmentIds.has(item.assignmentId))
+        return [...previous, ...incoming]
+      })
+      setExecutiveNextCursor(response.pagination?.nextCursor || null)
+      setExecutiveStatus(response.meta?.status ?? null)
+      setExecutiveRejectionReason(response.meta?.rejectionReason ?? null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("communityDetails.fetchMoreExecutiveMembersFailed")
+      toast.error(message)
+    } finally {
+      setIsLoadingMoreExecutiveMembers(false)
     }
   }
 
@@ -1006,28 +1148,36 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                   {admins.map((admin, index) => (
                     <div
                       key={admin.id || admin.email || index}
-                      className="space-y-3 rounded-2xl border border-secondary/35 bg-gradient-to-br from-secondary/10 via-background/95 to-background p-4"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openAdminDetails(admin)}
+                      onKeyDown={(event) => handleAdminCardKeyDown(event, admin)}
+                      aria-label={t("communityDetails.openAdminDetails")}
+                      className="relative space-y-3 overflow-hidden rounded-2xl border border-border/70 bg-[linear-gradient(150deg,hsl(var(--card))_0%,hsl(var(--muted)/0.35)_100%)] p-4 shadow-[0_18px_38px_-24px_rgba(0,0,0,0.7)] transition-all duration-200 hover:-translate-y-[1px] hover:border-secondary/35 hover:shadow-[0_24px_42px_-24px_rgba(0,0,0,0.78)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/50"
                     >
-                      <div className={cn("flex items-center gap-3", isRTL && "flex-row-reverse")}>
+                      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_95%_at_0%_0%,rgba(255,206,84,0.12),rgba(255,255,255,0)_58%)]" />
+                      <div className={cn("relative flex items-center gap-3", isRTL && "flex-row-reverse")}>
                         <button
                           type="button"
-                          onClick={() =>
+                          onClick={(event) => {
+                            event.stopPropagation()
                             openMediaViewer(
                               admin.profilePictureUrl || null,
                               admin.fullName || t("communityDetails.adminPhoto"),
                               getInitials(admin.fullName || admin.username || "Admin"),
                             )
-                          }
+                          }}
+                          onKeyDown={(event) => event.stopPropagation()}
                           className="rounded-full transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/60"
                           aria-label={t("communityDetails.viewAdminProfilePicture")}
                         >
-                          <Avatar className="h-12 w-12 border border-border/70 ring-2 ring-background">
+                          <Avatar className="h-14 w-14 border border-border/70 ring-2 ring-background">
                             <AvatarImage src={admin.profilePictureUrl || undefined} alt={admin.fullName} />
                             <AvatarFallback>{getInitials(admin.fullName || admin.username || "Admin")}</AvatarFallback>
                           </Avatar>
                         </button>
                         <div className={cn("min-w-0 flex-1", isRTL && "text-right")}>
-                          <p className="truncate text-sm font-semibold text-foreground">{admin.fullName || t("communityDetails.na")}</p>
+                          <p className="truncate text-sm font-semibold tracking-[0.01em] text-foreground sm:text-[15px]">{admin.fullName || t("communityDetails.na")}</p>
                           <p className="truncate text-xs text-muted-foreground">
                             {admin.username ? `@${admin.username}` : t("communityDetails.noUsername")}
                           </p>
@@ -1035,7 +1185,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                         <Badge
                           variant="outline"
                           className={cn(
-                            "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                            "rounded-full px-3 py-1 text-[11px] font-semibold",
                             admin.isJoined === false
                               ? "border-amber-200 bg-amber-100 text-amber-800"
                               : "border-emerald-200 bg-emerald-100 text-emerald-800",
@@ -1044,13 +1194,17 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                           {admin.isJoined === false ? t("communityDetails.invitePending") : t("communityDetails.joined")}
                         </Badge>
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="relative grid gap-2.5 sm:grid-cols-2">
                         <InfoRow icon={<Mail className="h-4 w-4" />} label={t("communityDetails.email")} value={admin.email} isRTL={isRTL} />
                         <InfoRow icon={<Phone className="h-4 w-4" />} label={t("communityDetails.phone")} value={admin.mobileNumber} isRTL={isRTL} />
                         <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={admin.housePlot} isRTL={isRTL} />
                         <InfoRow icon={<User className="h-4 w-4" />} label={t("communityDetails.bio")} value={admin.bio} isRTL={isRTL} />
                       </div>
-                      <div className={cn("flex items-center justify-end", isRTL && "justify-start")}>
+                      <div
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                        className={cn("relative flex items-center justify-end pt-1", isRTL && "justify-start")}
+                      >
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
@@ -1089,6 +1243,241 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog
+        open={isAdminDetailsOpen}
+        onOpenChange={(open) => {
+          setIsAdminDetailsOpen(open)
+          if (!open) setSelectedAdmin(null)
+        }}
+      >
+        <DialogContent className="max-w-3xl overflow-hidden border-border/60 bg-background/95 p-0">
+          <DialogHeader>
+            <div className="border-b border-border/60 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(56,189,248,0.14),rgba(255,255,255,0)_62%)] px-5 py-4 sm:px-6">
+              <DialogTitle>{t("communityDetails.adminDetailsTitle")}</DialogTitle>
+              <DialogDescription>{t("communityDetails.adminDetailsDescription")}</DialogDescription>
+            </div>
+          </DialogHeader>
+          {selectedAdmin ? (
+            <div className="space-y-4 p-5 sm:p-6">
+              <div className={cn("relative overflow-hidden rounded-2xl border border-border/70 bg-[linear-gradient(150deg,hsl(var(--card))_0%,hsl(var(--muted)/0.35)_100%)] p-4 shadow-[0_20px_42px_-26px_rgba(0,0,0,0.72)]", isRTL && "text-right")}>
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_95%_at_0%_0%,rgba(255,206,84,0.12),rgba(255,255,255,0)_58%)]" />
+                <div className={cn("relative flex items-center gap-3", isRTL && "flex-row-reverse")}>
+                  <Avatar className="h-14 w-14 border border-border/70 ring-2 ring-background">
+                    <AvatarImage src={selectedAdmin.profilePictureUrl || undefined} alt={selectedAdmin.fullName || selectedAdmin.username || t("communityDetails.user")} />
+                    <AvatarFallback>{getInitials(selectedAdmin.fullName || selectedAdmin.username || "A")}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="truncate text-base font-semibold tracking-[0.01em] text-foreground">
+                      {selectedAdmin.fullName || t("communityDetails.unnamedUser")}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {selectedAdmin.username ? `@${selectedAdmin.username}` : t("communityDetails.noUsername")}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold",
+                      selectedAdmin.isJoined === false
+                        ? "border-amber-200 bg-amber-100 text-amber-800"
+                        : "border-emerald-200 bg-emerald-100 text-emerald-800",
+                      isRTL && "order-first",
+                    )}
+                  >
+                    {selectedAdmin.isJoined === false ? t("communityDetails.invitePending") : t("communityDetails.joined")}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="grid gap-2.5 lg:grid-cols-2">
+                <InfoRow icon={<Mail className="h-4 w-4" />} label={t("communityDetails.email")} value={selectedAdmin.email || "-"} isRTL={isRTL} />
+                <InfoRow icon={<Phone className="h-4 w-4" />} label={t("communityDetails.phone")} value={selectedAdmin.mobileNumber || "-"} isRTL={isRTL} />
+                <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={selectedAdmin.housePlot || "-"} isRTL={isRTL} />
+                <InfoRow icon={<User className="h-4 w-4" />} label={t("communityDetails.bio")} value={selectedAdmin.bio || "-"} isRTL={isRTL} />
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Card className="group relative overflow-hidden rounded-3xl border border-border/75 bg-card/95 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.62)] transition-all duration-300 hover:border-secondary/35 hover:shadow-[0_24px_52px_-24px_rgba(0,0,0,0.7)] animate-slide-up stagger-3">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_90%_at_100%_0%,rgba(255,255,255,0.10),rgba(255,255,255,0)_60%)]" />
+        <CardContent className="p-5 sm:p-6">
+          <div className={cn("mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between", isRTL && "sm:flex-row-reverse")}>
+            <div className={cn("space-y-1", isRTL && "text-right")}>
+              <p className="inline-flex w-fit items-center rounded-md border border-secondary/25 bg-secondary/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-secondary">
+                {t("communityDetails.executiveMembers")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("communityDetails.executiveMembersNote")}
+              </p>
+            </div>
+            <div className={cn("flex flex-wrap items-center gap-2", isRTL && "justify-end")}>
+              {executiveRejectionReason ? (
+                <Badge variant="outline" className="rounded-full border-rose-300/40 bg-rose-500/10 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                  {t("communityDetails.rejectionReason")}: {executiveRejectionReason}
+                </Badge>
+              ) : null}
+            </div>
+          </div>
+
+          {isLoadingExecutiveMembers ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={`executive-skeleton-${index}`} className="h-16 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : executiveMembers.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+              {t("communityDetails.noExecutiveMembers")}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {executiveMembers.map((member) => {
+                const fullName = member.name || t("communityDetails.unnamedUser")
+                const assignedDate = member.assignedAt ? new Date(member.assignedAt) : null
+                const assignedAt = assignedDate && !Number.isNaN(assignedDate.getTime())
+                  ? assignedDate.toLocaleString(isRTL ? "ur-PK" : "en-US")
+                  : "-"
+
+                return (
+                  <div
+                    key={member.assignmentId}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openExecutiveDetails(member)}
+                    onKeyDown={(event) => handleExecutiveCardKeyDown(event, member)}
+                    aria-label={t("communityDetails.openExecutiveDetails")}
+                    className="relative space-y-3 overflow-hidden rounded-2xl border border-border/70 bg-[linear-gradient(150deg,hsl(var(--card))_0%,hsl(var(--muted)/0.35)_100%)] p-4 shadow-[0_18px_38px_-24px_rgba(0,0,0,0.7)] transition-all duration-200 hover:-translate-y-[1px] hover:border-secondary/35 hover:shadow-[0_24px_42px_-24px_rgba(0,0,0,0.78)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/50"
+                  >
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_95%_at_0%_0%,rgba(255,206,84,0.12),rgba(255,255,255,0)_58%)]" />
+                    <div className={cn("relative flex items-start gap-3", isRTL && "flex-row-reverse")}>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          openMediaViewer(
+                            member.profilePictureUrl || null,
+                            fullName,
+                            getInitials(fullName),
+                          )
+                        }}
+                        onKeyDown={(event) => event.stopPropagation()}
+                        className="rounded-full transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/60"
+                        aria-label={t("communityDetails.viewUserProfilePicture")}
+                      >
+                        <Avatar className="h-12 w-12 border border-border/70 ring-2 ring-background">
+                          <AvatarImage src={member.profilePictureUrl || undefined} alt={fullName} />
+                          <AvatarFallback>{getInitials(fullName)}</AvatarFallback>
+                        </Avatar>
+                      </button>
+                      <div className={cn("min-w-0 flex-1", isRTL && "text-right")}>
+                        <div className={cn("flex flex-wrap items-center gap-2", isRTL && "justify-end")}>
+                          <p className="truncate text-sm font-semibold text-foreground sm:text-[15px]">{fullName}</p>
+                          <Badge variant="outline" className="rounded-full border-emerald-300/40 bg-emerald-500/12 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                            {formatRoleLabel(member.role)}
+                          </Badge>
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {member.username ? `@${member.username}` : t("communityDetails.noUsername")}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {t("communityDetails.assignedAt")}: {assignedAt}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="relative mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      <InfoRow icon={<Mail className="h-4 w-4" />} label={t("communityDetails.email")} value={member.email || "-"} isRTL={isRTL} />
+                      <InfoRow icon={<Phone className="h-4 w-4" />} label={t("communityDetails.phone")} value={member.phoneNumber || "-"} isRTL={isRTL} />
+                      <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={member.housePlot || "-"} isRTL={isRTL} />
+                    </div>
+                  </div>
+                )
+              })}
+
+              {executiveNextCursor ? (
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleLoadMoreExecutiveMembers}
+                    disabled={isLoadingMoreExecutiveMembers}
+                    className="w-full border-border/70 bg-background/80 shadow-sm hover:bg-background sm:w-auto"
+                  >
+                    {isLoadingMoreExecutiveMembers ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {t("communityDetails.loading")}
+                      </>
+                    ) : (
+                      t("communityDetails.loadMoreExecutiveMembers")
+                    )}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog
+        open={isExecutiveDetailsOpen}
+        onOpenChange={(open) => {
+          setIsExecutiveDetailsOpen(open)
+          if (!open) setSelectedExecutive(null)
+        }}
+      >
+        <DialogContent className="max-w-3xl overflow-hidden border-border/60 bg-background/95 p-0">
+          <DialogHeader>
+            <div className="border-b border-border/60 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(56,189,248,0.14),rgba(255,255,255,0)_62%)] px-5 py-4 sm:px-6">
+              <DialogTitle>{t("communityDetails.executiveDetailsTitle")}</DialogTitle>
+              <DialogDescription>{t("communityDetails.executiveDetailsDescription")}</DialogDescription>
+            </div>
+          </DialogHeader>
+          {selectedExecutive ? (
+            <div className="space-y-4 p-5 sm:p-6">
+              <div className={cn("relative overflow-hidden rounded-2xl border border-border/70 bg-[linear-gradient(150deg,hsl(var(--card))_0%,hsl(var(--muted)/0.35)_100%)] p-4 shadow-[0_20px_42px_-26px_rgba(0,0,0,0.72)]", isRTL && "text-right")}>
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_95%_at_0%_0%,rgba(255,206,84,0.12),rgba(255,255,255,0)_58%)]" />
+                <div className={cn("relative flex items-center gap-3", isRTL && "flex-row-reverse")}>
+                <Avatar className="h-14 w-14 border border-border/70 ring-2 ring-background">
+                  <AvatarImage src={selectedExecutive.profilePictureUrl || undefined} alt={selectedExecutive.name || selectedExecutive.username || t("communityDetails.user")} />
+                  <AvatarFallback>{getInitials(selectedExecutive.name || selectedExecutive.username || "U")}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="truncate text-base font-semibold tracking-[0.01em] text-foreground">
+                    {selectedExecutive.name || t("communityDetails.unnamedUser")}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {selectedExecutive.username ? `@${selectedExecutive.username}` : t("communityDetails.noUsername")}
+                  </p>
+                </div>
+                <Badge variant="outline" className={cn("shrink-0 rounded-full border-emerald-300/40 bg-emerald-500/12 px-3 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300", isRTL && "order-first")}>
+                  {formatRoleLabel(selectedExecutive.role)}
+                </Badge>
+              </div>
+              </div>
+
+              <div className="grid gap-2.5 lg:grid-cols-2">
+                <InfoRow icon={<Mail className="h-4 w-4" />} label={t("communityDetails.email")} value={selectedExecutive.email || "-"} isRTL={isRTL} />
+                <InfoRow icon={<Phone className="h-4 w-4" />} label={t("communityDetails.phone")} value={selectedExecutive.phoneNumber || "-"} isRTL={isRTL} />
+                <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={selectedExecutive.housePlot || "-"} isRTL={isRTL} />
+                <InfoRow icon={<User className="h-4 w-4" />} label={t("communityDetails.executiveRole")} value={formatRoleLabel(selectedExecutive.role)} isRTL={isRTL} />
+                <InfoRow
+                  icon={<UserCircle2 className="h-4 w-4" />}
+                  label={t("communityDetails.assignedAt")}
+                  value={
+                    selectedExecutive.assignedAt && !Number.isNaN(new Date(selectedExecutive.assignedAt).getTime())
+                      ? new Date(selectedExecutive.assignedAt).toLocaleString(isRTL ? "ur-PK" : "en-US")
+                      : "-"
+                  }
+                  isRTL={isRTL}
+                />
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       {!hasAssignedAdmin && (
       <Card className="group relative overflow-hidden rounded-3xl border border-border/75 bg-card/95 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.62)] transition-all duration-300 hover:border-secondary/35 hover:shadow-[0_24px_52px_-24px_rgba(0,0,0,0.7)] animate-slide-up stagger-3">
@@ -1270,104 +1659,156 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
             <div className="space-y-3">
               {filteredUsers.map((member) => {
                 const memberProfilePicture = member.profilePictureUrl
+                const isUserInactive = Boolean(member.isDeleted)
+                const isUserStatusChanging = statusChangingUserId === member.id
 
                 return (
                   <div
                     key={member.id}
-                    className="group relative overflow-hidden rounded-[1.65rem] border border-border/70 bg-[linear-gradient(145deg,hsl(var(--background))_0%,hsl(var(--card))_45%,hsl(var(--muted)/0.45)_100%)] p-4 shadow-[0_18px_44px_-28px_rgba(0,0,0,0.7)] transition-all duration-300 hover:-translate-y-[2px] hover:border-accent/35 hover:shadow-[0_24px_54px_-28px_rgba(0,0,0,0.8)]"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openUserDetails(member)}
+                    onKeyDown={(event) => handleUserCardKeyDown(event, member)}
+                    aria-label={t("communityDetails.openUserDetails")}
+                    className="group relative cursor-pointer overflow-hidden rounded-3xl border border-border/70 bg-[linear-gradient(150deg,hsl(var(--card))_0%,hsl(var(--card)/0.88)_45%,hsl(var(--muted)/0.4)_100%)] p-4 shadow-[0_18px_44px_-28px_rgba(0,0,0,0.65)] transition-all duration-300 hover:-translate-y-[2px] hover:border-secondary/35 hover:shadow-[0_26px_56px_-30px_rgba(0,0,0,0.72)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/50 sm:p-5"
                   >
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_100%_at_0%_0%,rgba(255,206,84,0.14),rgba(255,255,255,0)_55%)] opacity-70" />
-                    <div className={cn("relative flex items-start gap-3", isRTL && "flex-row-reverse")}>
-                      {memberProfilePicture ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openMediaViewer(
-                              memberProfilePicture,
-                              member.fullName || member.username || t("communityDetails.userPhoto"),
-                            )
-                          }
-                          className="rounded-full transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/60"
-                          aria-label={t("communityDetails.viewUserProfilePicture")}
-                        >
-                          <Avatar className="h-12 w-12 border border-white/60 ring-4 ring-background shadow-[0_10px_24px_-12px_rgba(0,0,0,0.8)]">
-                            <AvatarImage src={memberProfilePicture} alt={member.fullName || member.username || t("communityDetails.user")} />
-                            <AvatarFallback>
-                              {(member.fullName || member.username || "U").slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        </button>
-                      ) : (
-                        <Avatar className="h-12 w-12 border border-white/60 ring-4 ring-background shadow-[0_10px_24px_-12px_rgba(0,0,0,0.8)]">
-                          <AvatarImage src={undefined} alt={member.fullName || member.username || t("communityDetails.user")} />
-                          <AvatarFallback>
-                            {(member.fullName || member.username || "U").slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div className={cn("min-w-0 flex-1 space-y-1", isRTL && "text-right")}>
-                        <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
-                          <p className="truncate text-sm font-semibold tracking-[0.01em] text-foreground">
-                            {member.fullName || t("communityDetails.unnamedUser")}
-                          </p>
-                          <span className="inline-flex h-6 items-center rounded-full border border-accent/30 bg-accent/10 px-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-accent-foreground">
-                            {t("communityDetails.memberBadge")}
-                          </span>
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(115%_90%_at_0%_0%,rgba(255,206,84,0.14),rgba(255,255,255,0)_58%)] opacity-75" />
+                    <div className="relative space-y-4">
+                      <div className={cn("flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between", isRTL && "lg:flex-row-reverse")}>
+                        <div className={cn("flex min-w-0 items-start gap-3", isRTL && "flex-row-reverse")}>
+                          {memberProfilePicture ? (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                openMediaViewer(
+                                  memberProfilePicture,
+                                  member.fullName || member.username || t("communityDetails.userPhoto"),
+                                )
+                              }}
+                              onKeyDown={(event) => event.stopPropagation()}
+                              className="rounded-full transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary/60"
+                              aria-label={t("communityDetails.viewUserProfilePicture")}
+                            >
+                              <Avatar className="h-12 w-12 border border-white/60 ring-4 ring-background shadow-[0_12px_26px_-14px_rgba(0,0,0,0.8)]">
+                                <AvatarImage src={memberProfilePicture} alt={member.fullName || member.username || t("communityDetails.user")} />
+                                <AvatarFallback>
+                                  {(member.fullName || member.username || "U").slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                            </button>
+                          ) : (
+                            <Avatar className="h-12 w-12 border border-white/60 ring-4 ring-background shadow-[0_12px_26px_-14px_rgba(0,0,0,0.8)]">
+                              <AvatarImage src={undefined} alt={member.fullName || member.username || t("communityDetails.user")} />
+                              <AvatarFallback>
+                                {(member.fullName || member.username || "U").slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+                          <div className={cn("min-w-0 flex-1 space-y-1.5", isRTL && "text-right")}>
+                            <p className="truncate text-sm font-semibold tracking-[0.01em] text-foreground sm:text-[15px]">
+                              {member.fullName || t("communityDetails.unnamedUser")}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">{member.username ? `@${member.username}` : t("communityDetails.noUsername")}</p>
+                            <div className={cn("flex flex-wrap items-center gap-2", isRTL && "justify-end")}>
+                              <span className="inline-flex h-6 items-center rounded-full border border-emerald-300/40 bg-emerald-500/12 px-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
+                                {t("communityDetails.memberBadge")}
+                              </span>
+                              {member.role ? (
+                                <span className="inline-flex h-6 items-center rounded-full border border-emerald-300/40 bg-emerald-500/12 px-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
+                                  {formatRoleLabel(member.role)}
+                                </span>
+                              ) : null}
+                              <span
+                                className={cn(
+                                  "inline-flex h-6 items-center rounded-full border px-2.5 text-[10px] font-semibold uppercase tracking-[0.16em]",
+                                  isUserInactive
+                                    ? "border-red-200 bg-red-100 text-red-800"
+                                    : "border-emerald-200 bg-emerald-100 text-emerald-800",
+                                )}
+                              >
+                                {isUserInactive ? t("communityDetails.statusInactive") : t("communityDetails.statusActive")}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <p className="truncate text-xs text-muted-foreground">{member.username ? `@${member.username}` : t("communityDetails.noUsername")}</p>
-                      </div>
-                      <div className={cn("flex max-w-[360px] flex-wrap items-center justify-end gap-2", isRTL && "justify-start")}>
-                        {!hasAssignedAdmin && (
-                          <Button
-                            size="sm"
-                            disabled={assigningUserId === member.id}
-                            onClick={() => handleAssignAdmin(member.id)}
-                            className="h-9 rounded-xl border border-secondary/35 bg-gradient-to-r from-secondary via-secondary to-accent/80 px-3.5 text-xs font-semibold text-secondary-foreground shadow-[0_14px_28px_-18px_rgba(0,0,0,0.85)] transition-all hover:-translate-y-[1px] hover:shadow-[0_18px_32px_-18px_rgba(0,0,0,0.95)]"
-                          >
-                            {assigningUserId === member.id ? t("communityDetails.assigning") : t("communityDetails.assignAsAdmin")}
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={statusChangingUserId === member.id}
-                          onClick={() => handleToggleUserStatus(member.id)}
-                          className="h-9 rounded-xl border-border/70 bg-background/80 px-3.5 text-xs font-semibold shadow-sm transition-all hover:-translate-y-[1px] hover:border-secondary/35 hover:bg-secondary/5"
+
+                        <div
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          className={cn("grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-[auto_auto_auto]", isRTL && "lg:[direction:ltr]")}
                         >
-                          {statusChangingUserId === member.id ? t("communityDetails.loading") : t("communityDetails.toggleUserStatus")}
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
+                          {!hasAssignedAdmin && (
                             <Button
                               size="sm"
-                              variant="destructive"
-                              disabled={deletingUserId === member.id}
-                              className="h-9 rounded-xl px-3.5 text-xs font-semibold shadow-[0_14px_28px_-18px_rgba(220,38,38,0.6)] transition-all hover:-translate-y-[1px]"
+                              disabled={assigningUserId === member.id}
+                              onClick={() => handleAssignAdmin(member.id)}
+                              className="h-10 rounded-2xl border border-secondary/35 bg-gradient-to-r from-secondary to-accent px-4 text-xs font-semibold tracking-[0.01em] text-secondary-foreground shadow-[0_14px_28px_-16px_rgba(0,0,0,0.55)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-105 hover:shadow-[0_18px_34px_-16px_rgba(0,0,0,0.7)] active:translate-y-0"
                             >
-                              {deletingUserId === member.id ? t("communityDetails.deletingUser") : t("communityDetails.deleteUser")}
+                              {assigningUserId === member.id ? t("communityDetails.assigning") : t("communityDetails.assignAsAdmin")}
                             </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>{t("communityDetails.deleteUserDialogTitle")}</AlertDialogTitle>
-                              <AlertDialogDescription>{t("communityDetails.deleteUserDialogDescription")}</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>{t("communityDetails.cancel")}</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteUser(member.id)}>
-                                {t("communityDetails.delete")}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                          )}
+                          <div
+                            className={cn(
+                              "inline-flex h-10 items-center justify-between gap-2 rounded-2xl border border-border/70 bg-muted/55 px-4 text-xs font-semibold text-foreground shadow-sm sm:min-w-[180px]",
+                              isRTL && "flex-row-reverse",
+                            )}
+                          >
+                            <span className="text-foreground">
+                              {isUserInactive ? t("communityDetails.statusInactive") : t("communityDetails.statusActive")}
+                            </span>
+                            <div className={cn("inline-flex items-center gap-2", isRTL && "flex-row-reverse")}>
+                              <Switch
+                                checked={!isUserInactive}
+                                disabled={isUserStatusChanging}
+                                onCheckedChange={() => handleToggleUserStatus(member.id)}
+                                aria-label={t("communityDetails.toggleUserStatus")}
+                                className="h-7 w-12 border border-border/70 data-[state=checked]:bg-secondary data-[state=unchecked]:bg-muted [&>span]:h-6 [&>span]:w-6"
+                              />
+                              {isUserStatusChanging ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : null}
+                            </div>
+                          </div>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                disabled={deletingUserId === member.id}
+                                className="h-10 rounded-2xl border border-destructive/30 bg-destructive px-4 text-xs font-semibold tracking-[0.01em] text-destructive-foreground shadow-[0_14px_26px_-16px_rgba(220,38,38,0.8)] transition-all duration-200 hover:-translate-y-[1px] hover:bg-destructive/90 hover:shadow-[0_18px_32px_-16px_rgba(220,38,38,0.95)] active:translate-y-0"
+                              >
+                                {deletingUserId === member.id ? t("communityDetails.deletingUser") : t("communityDetails.deleteUser")}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>{t("communityDetails.deleteUserDialogTitle")}</AlertDialogTitle>
+                                <AlertDialogDescription>{t("communityDetails.deleteUserDialogDescription")}</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>{t("communityDetails.cancel")}</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteUser(member.id)}>
+                                  {t("communityDetails.delete")}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </div>
                     </div>
 
                     <div className="relative mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-                      <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={member.housePlot || "-"} isRTL={isRTL} />
-                      <InfoRow icon={<Mail className="h-4 w-4" />} label={t("communityDetails.email")} value={member.email || "-"} isRTL={isRTL} />
-                      <InfoRow icon={<Phone className="h-4 w-4" />} label={t("communityDetails.phone")} value={member.phoneNumber || "-"} isRTL={isRTL} />
-                      <InfoRow icon={<UserCircle2 className="h-4 w-4" />} label={t("communityDetails.familyMembers")} value={String(member.noOfFamilyMember ?? "-")} isRTL={isRTL} />
+                      <div className="rounded-xl border border-border/65 bg-background/65 p-2.5">
+                        <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={member.housePlot || "-"} isRTL={isRTL} />
+                      </div>
+                      <div className="rounded-xl border border-border/65 bg-background/65 p-2.5">
+                        <InfoRow icon={<Mail className="h-4 w-4" />} label={t("communityDetails.email")} value={member.email || "-"} isRTL={isRTL} />
+                      </div>
+                      <div className="rounded-xl border border-border/65 bg-background/65 p-2.5">
+                        <InfoRow icon={<Phone className="h-4 w-4" />} label={t("communityDetails.phone")} value={member.phoneNumber || "-"} isRTL={isRTL} />
+                      </div>
+                      <div className="rounded-xl border border-border/65 bg-background/65 p-2.5">
+                        <InfoRow icon={<UserCircle2 className="h-4 w-4" />} label={t("communityDetails.familyMembers")} value={String(member.noOfFamilyMember ?? "-")} isRTL={isRTL} />
+                      </div>
                     </div>
                   </div>
                 )
@@ -1396,6 +1837,94 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={isUserDetailsOpen}
+        onOpenChange={(open) => {
+          setIsUserDetailsOpen(open)
+          if (!open) setSelectedUser(null)
+        }}
+      >
+        <DialogContent className="max-w-3xl overflow-hidden border-border/60 bg-background/95 p-0">
+          <DialogHeader>
+            <div className="border-b border-border/60 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(56,189,248,0.14),rgba(255,255,255,0)_62%)] px-5 py-4 sm:px-6">
+              <DialogTitle>{t("communityDetails.userDetailsTitle")}</DialogTitle>
+              <DialogDescription>{t("communityDetails.userDetailsDescription")}</DialogDescription>
+            </div>
+          </DialogHeader>
+          {selectedUser ? (
+            <div className="space-y-4 p-5 sm:p-6">
+              <div className={cn("relative overflow-hidden rounded-2xl border border-border/70 bg-[linear-gradient(150deg,hsl(var(--card))_0%,hsl(var(--muted)/0.35)_100%)] p-4 shadow-[0_20px_42px_-26px_rgba(0,0,0,0.72)]", isRTL && "text-right")}>
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_95%_at_0%_0%,rgba(255,206,84,0.12),rgba(255,255,255,0)_58%)]" />
+                <div className={cn("relative flex items-center gap-3", isRTL && "flex-row-reverse")}>
+                <Avatar className="h-14 w-14 border border-border/70 ring-2 ring-background">
+                  <AvatarImage src={selectedUser.profilePictureUrl || undefined} alt={selectedUser.fullName || selectedUser.username || t("communityDetails.user")} />
+                  <AvatarFallback>{(selectedUser.fullName || selectedUser.username || "U").slice(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="truncate text-base font-semibold tracking-[0.01em] text-foreground">
+                    {selectedUser.fullName || t("communityDetails.unnamedUser")}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {selectedUser.username ? `@${selectedUser.username}` : t("communityDetails.noUsername")}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 inline-flex h-7 items-center rounded-full border px-3 text-[11px] font-semibold uppercase tracking-[0.16em]",
+                    isRTL && "order-first",
+                    selectedUser.isDeleted
+                      ? "border-red-200 bg-red-100 text-red-800"
+                      : "border-emerald-200 bg-emerald-100 text-emerald-800",
+                  )}
+                >
+                  {selectedUser.isDeleted ? t("communityDetails.statusInactive") : t("communityDetails.statusActive")}
+                </span>
+              </div>
+              </div>
+
+              <div className="grid gap-2.5 lg:grid-cols-2">
+                <InfoRow icon={<Mail className="h-4 w-4" />} label={t("communityDetails.email")} value={selectedUser.email || "-"} isRTL={isRTL} />
+                <InfoRow icon={<Phone className="h-4 w-4" />} label={t("communityDetails.phone")} value={selectedUser.phoneNumber || "-"} isRTL={isRTL} />
+                <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={selectedUser.housePlot || "-"} isRTL={isRTL} />
+                <InfoRow icon={<UserCircle2 className="h-4 w-4" />} label={t("communityDetails.familyMembers")} value={String(selectedUser.noOfFamilyMember ?? "-")} isRTL={isRTL} />
+                <InfoRow icon={<User className="h-4 w-4" />} label={t("communityDetails.executiveRole")} value={formatRoleLabel(selectedUser.role)} isRTL={isRTL} />
+                <InfoRow icon={<User className="h-4 w-4" />} label={t("communityDetails.gender")} value={selectedUser.gender || "-"} isRTL={isRTL} />
+                <InfoRow icon={<User className="h-4 w-4" />} label={t("communityDetails.dateOfBirth")} value={selectedUser.dateOfBirth || "-"} isRTL={isRTL} />
+              </div>
+
+              <div className="space-y-2 rounded-xl border border-border/70 bg-background/75 p-3.5">
+                <p className={cn("text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground", isRTL && "text-right")}>
+                  {t("communityDetails.bio")}
+                </p>
+                <p className={cn("text-sm text-foreground", isRTL && "text-right")}>
+                  {selectedUser.bio || "-"}
+                </p>
+              </div>
+
+              <div className="space-y-2 rounded-xl border border-border/70 bg-background/75 p-3.5">
+                <p className={cn("text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground", isRTL && "text-right")}>
+                  {t("communityDetails.interests")}
+                </p>
+                {selectedUser.interests && selectedUser.interests.length > 0 ? (
+                  <div className={cn("flex flex-wrap gap-2", isRTL && "justify-end")}>
+                    {selectedUser.interests.map((interest, index) => (
+                      <span
+                        key={`${selectedUser.id}-${interest}-${index}`}
+                        className="inline-flex items-center rounded-full border border-secondary/30 bg-secondary/10 px-2.5 py-1 text-xs font-medium text-secondary"
+                      >
+                        {interest}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={cn("text-sm text-foreground", isRTL && "text-right")}>-</p>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={mediaViewer.open}
@@ -1440,12 +1969,19 @@ function InfoRow({
   isRTL: boolean
 }) {
   return (
-    <div className={cn("flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/75 p-3.5 shadow-sm transition-colors hover:bg-background", isRTL && "flex-row-reverse")}>
-      <div className={cn("flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground", isRTL && "flex-row-reverse")}>
+    <div className={cn("flex items-start justify-between gap-3 rounded-xl border border-border/70 bg-background/75 p-3.5 shadow-sm transition-colors hover:bg-background", isRTL && "flex-row-reverse")}>
+      <div className={cn("flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground", isRTL && "flex-row-reverse")}>
         {icon}
         <span>{label}</span>
       </div>
-      <p className={cn("truncate text-sm font-semibold text-foreground", isRTL && "text-right")}>{value || "-"}</p>
+      <p
+        className={cn(
+          "min-w-0 max-w-[62%] whitespace-normal break-words text-sm font-semibold leading-snug text-foreground",
+          isRTL ? "text-left" : "text-right",
+        )}
+      >
+        {value || "-"}
+      </p>
     </div>
   )
 }
