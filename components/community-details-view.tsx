@@ -1200,36 +1200,38 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                         <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={admin.housePlot} isRTL={isRTL} />
                         <InfoRow icon={<User className="h-4 w-4" />} label={t("communityDetails.bio")} value={admin.bio} isRTL={isRTL} />
                       </div>
-                      <div
-                        onClick={(event) => event.stopPropagation()}
-                        onKeyDown={(event) => event.stopPropagation()}
-                        className={cn("relative flex items-center justify-end pt-1", isRTL && "justify-start")}
-                      >
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              disabled={removingAdminId === admin.id}
-                              className="h-9 rounded-xl px-3.5 text-xs font-semibold shadow-[0_14px_28px_-18px_rgba(220,38,38,0.6)] transition-all hover:-translate-y-[1px]"
-                            >
-                              {removingAdminId === admin.id ? t("communityDetails.removingAdmin") : t("communityDetails.removeAdmin")}
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>{t("communityDetails.removeAdminDialogTitle")}</AlertDialogTitle>
-                              <AlertDialogDescription>{t("communityDetails.removeAdminDialogDescription")}</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>{t("communityDetails.cancel")}</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleRemoveAdmin(admin.id)}>
-                                {t("communityDetails.removeAdmin")}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
+                      {admin.isJoined !== false && (
+                        <div
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          className={cn("relative flex items-center justify-end pt-1", isRTL && "justify-start")}
+                        >
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                disabled={removingAdminId === admin.id}
+                                className="h-9 rounded-xl px-3.5 text-xs font-semibold shadow-[0_14px_28px_-18px_rgba(220,38,38,0.6)] transition-all hover:-translate-y-[1px]"
+                              >
+                                {removingAdminId === admin.id ? t("communityDetails.removingAdmin") : t("communityDetails.removeAdmin")}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>{t("communityDetails.removeAdminDialogTitle")}</AlertDialogTitle>
+                                <AlertDialogDescription>{t("communityDetails.removeAdminDialogDescription")}</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>{t("communityDetails.cancel")}</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleRemoveAdmin(admin.id)}>
+                                  {t("communityDetails.removeAdmin")}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
