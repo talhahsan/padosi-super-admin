@@ -14,12 +14,13 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ValidationMessage } from "@/components/ui/validation-message"
 import { useAuth } from "@/lib/auth-context"
-import { createCommunity, deleteFileByName, getPreSignUrl, uploadFileToPresignUrl } from "@/lib/api"
+import { createCommunity, deleteFileByName, extractCreatedCommunityId, getPreSignUrl, toCommunityFromCreatedData, uploadFileToPresignUrl } from "@/lib/api"
 import { useLocale } from "@/lib/locale-context"
 import { cn } from "@/lib/utils"
 
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+const COMMUNITY_DETAILS_CACHE_KEY = "padosi_selected_community"
 
 function isValidEmail(email: string): boolean {
   return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)
@@ -71,7 +72,7 @@ export function CommunityCreateForm() {
     isRTL && "text-right",
   )
   const completionChecks = [
-    formData.name.trim().length > 0 && /^[A-Za-z -]+$/.test(formData.name.trim()) && formData.name.trim().length <= 100,
+    formData.name.trim().length > 0 && /^[A-Za-z0-9 -]+$/.test(formData.name.trim()) && formData.name.trim().length <= 100,
     formData.description.trim().length > 0 && formData.description.trim().length <= 500,
     /^\d+$/.test(formData.totalUnits.trim()) && Number(formData.totalUnits.trim()) > 0,
     formData.address.trim().length > 0,
@@ -182,7 +183,7 @@ export function CommunityCreateForm() {
       newErrors.name = t("createCommunity.validationCommunityName")
     } else if (trimmedName.length > 100) {
       newErrors.name = t("createCommunity.validationCommunityNameMax")
-    } else if (!/^[A-Za-z -]+$/.test(trimmedName)) {
+    } else if (!/^[A-Za-z0-9 -]+$/.test(trimmedName)) {
       newErrors.name = t("createCommunity.validationCommunityNameFormat")
     }
 
@@ -233,7 +234,7 @@ export function CommunityCreateForm() {
 
     setIsSubmitting(true)
     try {
-      await createCommunity(
+      const response = await createCommunity(
         {
           name: formData.name.trim(),
           description: formData.description.trim(),
@@ -250,7 +251,15 @@ export function CommunityCreateForm() {
       )
 
       toast.success(t("createCommunity.communityCreated"))
-      router.push("/communities")
+
+      try {
+        sessionStorage.setItem(COMMUNITY_DETAILS_CACHE_KEY, JSON.stringify(toCommunityFromCreatedData(response.data)))
+      } catch {
+        // no-op
+      }
+
+      const createdCommunityId = response.data?.id || extractCreatedCommunityId(response.data)
+      router.push(createdCommunityId ? `/communities/${createdCommunityId}` : "/communities")
     } catch (err) {
       const message = err instanceof Error ? err.message : t("createCommunity.createFailed")
       toast.error(message)
