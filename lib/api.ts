@@ -20,6 +20,11 @@ interface ApiResponse<T> {
   success: boolean
   message: string
   code: number
+  status?: string
+  meta?: {
+    status?: string
+    rejectionReason?: string
+  }
   data: T
 }
 
@@ -162,6 +167,72 @@ export interface CreateCommunityWithoutAdminPayload {
   totalUnits: number
   address: string
   city: string
+}
+
+export interface CreatedCommunityData {
+  id: string
+  name: string
+  description: string
+  bannerImage?: string
+  totalUnits: number
+  address: string
+  city: string
+  code: string
+  memberCount: number
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export function toCommunityFromCreatedData(data: CreatedCommunityData): Community {
+  return {
+    id: data.id,
+    name: data.name,
+    description: data.description,
+    totalUnits: data.totalUnits,
+    status: data.status,
+    memberCount: data.memberCount,
+    code: data.code,
+    address: data.address,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+    previewMembers: [],
+  }
+}
+
+function readObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null
+}
+
+export function extractCreatedCommunityId(data: unknown): string | null {
+  const root = readObject(data)
+  if (!root) return null
+
+  const directId = readString(root.id) ?? readString(root.communityId)
+  if (directId) return directId
+
+  const community = readObject(root.community)
+  if (community) {
+    const communityId = readString(community.id) ?? readString(community.communityId)
+    if (communityId) return communityId
+  }
+
+  const nestedData = readObject(root.data)
+  if (nestedData) {
+    const nestedId = readString(nestedData.id) ?? readString(nestedData.communityId)
+    if (nestedId) return nestedId
+
+    const nestedCommunity = readObject(nestedData.community)
+    if (nestedCommunity) {
+      return readString(nestedCommunity.id) ?? readString(nestedCommunity.communityId)
+    }
+  }
+
+  return null
 }
 
 export interface InviteCommunityAdminPayload {
@@ -462,7 +533,7 @@ export async function deleteFileByName(fileName: string, token: string): Promise
 export async function createCommunity(
   payload: CreateCommunityPayload,
   token: string,
-): Promise<ApiResponse<unknown>> {
+): Promise<ApiResponse<CreatedCommunityData>> {
   const requestPayload = {
     name: payload.name,
     description: payload.description,
@@ -476,7 +547,7 @@ export async function createCommunity(
     adminPicture: payload.adminPicture,
   }
 
-  return request<ApiResponse<unknown>>("/community/create", {
+  return request<ApiResponse<CreatedCommunityData>>("/community/create", {
     method: "POST",
     token,
     body: JSON.stringify(requestPayload),
@@ -486,8 +557,8 @@ export async function createCommunity(
 export async function createCommunityWithoutAdmin(
   payload: CreateCommunityWithoutAdminPayload,
   token: string,
-): Promise<ApiResponse<unknown>> {
-  return request<ApiResponse<unknown>>("/community/create-without-admin", {
+): Promise<ApiResponse<CreatedCommunityData>> {
+  return request<ApiResponse<CreatedCommunityData>>("/community/create-without-admin", {
     method: "POST",
     token,
     body: JSON.stringify(payload),
