@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect } from "react"
-import Image from "next/image"
 import { useRouter } from "next/navigation"
 
 import { LoginForm } from "@/components/login-form"
@@ -25,11 +24,11 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute -right-24 bottom-10 h-72 w-72 rounded-full bg-accent/25 blur-3xl animate-float-soft" />
 
       <div className="relative flex w-full max-w-lg flex-col items-center gap-8">
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-border/60 bg-background/70 px-6 py-4 shadow-md backdrop-blur-sm animate-slide-up">
-          <Image src="/padosi-logo.svg" alt="Padosi" width={120} height={48} className="h-12 w-auto" priority />
-          <p className="text-sm font-medium text-muted-foreground tracking-[0.12em] uppercase">
+        <div className="animate-slide-up flex flex-col items-center gap-3">
+          <p className="text-balance max-w-[15ch] text-center text-[clamp(1.85rem,5.2vw,3rem)] leading-[0.98] font-semibold tracking-[0.08em] uppercase text-foreground">
             {t("loginPage.superAdminPortal")}
           </p>
+          <span className="h-px w-28 bg-foreground/25 sm:w-32" />
         </div>
 
         <div className="w-full animate-scale-in stagger-2">
