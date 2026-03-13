@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ValidationMessage } from "@/components/ui/validation-message"
 import { useAuth } from "@/lib/auth-context"
-import { createCommunityWithoutAdmin } from "@/lib/api"
+import { createCommunityWithoutAdmin, extractCreatedCommunityId, toCommunityFromCreatedData } from "@/lib/api"
 import { useLocale } from "@/lib/locale-context"
 import { cn } from "@/lib/utils"
 
@@ -25,6 +25,7 @@ interface FormData {
 }
 
 type FormErrors = Partial<Record<keyof FormData, string>>
+const COMMUNITY_DETAILS_CACHE_KEY = "padosi_selected_community"
 
 export function CommunityCreateWithoutAdminForm() {
   const [formData, setFormData] = useState<FormData>({
@@ -104,7 +105,7 @@ export function CommunityCreateWithoutAdminForm() {
 
     setIsSubmitting(true)
     try {
-      await createCommunityWithoutAdmin(
+      const response = await createCommunityWithoutAdmin(
         {
           name: formData.name.trim(),
           description: formData.description.trim(),
@@ -116,7 +117,15 @@ export function CommunityCreateWithoutAdminForm() {
       )
 
       toast.success(t("createWithoutAdmin.createdSuccess"))
-      router.push("/communities")
+
+      try {
+        sessionStorage.setItem(COMMUNITY_DETAILS_CACHE_KEY, JSON.stringify(toCommunityFromCreatedData(response.data)))
+      } catch {
+        // no-op
+      }
+
+      const createdCommunityId = response.data?.id || extractCreatedCommunityId(response.data)
+      router.push(createdCommunityId ? `/communities/${createdCommunityId}` : "/communities")
     } catch (error) {
       const message = error instanceof Error ? error.message : t("createWithoutAdmin.createFailed")
       toast.error(message)
