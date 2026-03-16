@@ -39,6 +39,7 @@ import {
   inviteCommunityAdmin,
   removeCommunityAdmin,
   resendCommunityAdminInvite,
+  updateCommunityAdminDetail,
   deleteFileByName,
   deleteCommunity,
   updateCommunity,
@@ -162,6 +163,10 @@ function isMissingAdminMessage(message: string) {
   )
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
 export function CommunityDetailsView({ communityId }: { communityId: string }) {
   const { isAuthenticated, tokens } = useAuth()
   const { t, isRTL } = useLocale()
@@ -187,6 +192,17 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
   const [isInvitingAdmin, setIsInvitingAdmin] = useState(false)
   const [selectedAdmin, setSelectedAdmin] = useState<CommunityAdminDetails | null>(null)
   const [isAdminDetailsOpen, setIsAdminDetailsOpen] = useState(false)
+  const [isUpdatingAdminDetails, setIsUpdatingAdminDetails] = useState(false)
+  const [isUploadingEditAdminPicture, setIsUploadingEditAdminPicture] = useState(false)
+  const [editAdminForm, setEditAdminForm] = useState({
+    id: "",
+    fullName: "",
+    email: "",
+    mobileNumber: "",
+    housePlot: "",
+    profilePicture: "",
+  })
+  const [editAdminPicturePreview, setEditAdminPicturePreview] = useState<string | null>(null)
   const [selectedExecutive, setSelectedExecutive] = useState<ExecutiveMember | null>(null)
   const [isExecutiveDetailsOpen, setIsExecutiveDetailsOpen] = useState(false)
   const [executiveMembers, setExecutiveMembers] = useState<ExecutiveMember[]>([])
@@ -369,6 +385,19 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
   }, [admins, selectedAdmin])
 
   useEffect(() => {
+    if (!selectedAdmin || !isAdminDetailsOpen) return
+    setEditAdminForm({
+      id: selectedAdmin.id || "",
+      fullName: selectedAdmin.fullName || "",
+      email: selectedAdmin.email || "",
+      mobileNumber: selectedAdmin.mobileNumber || "",
+      housePlot: selectedAdmin.housePlot || "",
+      profilePicture: selectedAdmin.profilePicture || "",
+    })
+    setEditAdminPicturePreview(selectedAdmin.profilePictureUrl || null)
+  }, [isAdminDetailsOpen, selectedAdmin])
+
+  useEffect(() => {
     if (!selectedUser) return
     const updatedSelectedUser = users.find((user) => user.id === selectedUser.id)
     if (updatedSelectedUser) {
@@ -377,6 +406,28 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
   }, [selectedUser, users])
 
   const hasAssignedAdmin = admins.length > 0
+  const isPendingSelectedAdmin = selectedAdmin?.isJoined === false
+  const normalizedAdminEmail = editAdminForm.email.trim().toLowerCase()
+  const hasSelectedAdminEmailChanged = Boolean(
+    selectedAdmin && normalizedAdminEmail !== selectedAdmin.email.trim().toLowerCase(),
+  )
+  const hasAdminFormChanges = Boolean(
+    selectedAdmin && (
+      editAdminForm.fullName.trim() !== (selectedAdmin.fullName || "").trim() ||
+      editAdminForm.email.trim().toLowerCase() !== (selectedAdmin.email || "").trim().toLowerCase() ||
+      editAdminForm.mobileNumber.trim() !== (selectedAdmin.mobileNumber || "").trim() ||
+      editAdminForm.housePlot.trim() !== (selectedAdmin.housePlot || "").trim() ||
+      editAdminForm.profilePicture !== (selectedAdmin.profilePicture || "")
+    ),
+  )
+  const isAdminFormReadyToSubmit = Boolean(
+    editAdminForm.fullName.trim() &&
+    editAdminForm.email.trim() &&
+    editAdminForm.mobileNumber.trim() &&
+    editAdminForm.housePlot.trim() &&
+    isValidEmail(editAdminForm.email.trim()) &&
+    /^03\d{9}$/.test(editAdminForm.mobileNumber.trim()),
+  )
 
   const filteredUsers = users
 
@@ -466,6 +517,110 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
       toast.error(message)
     } finally {
       setIsResendingInvite(false)
+    }
+  }
+
+  async function handleEditAdminPictureUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      toast.error(t("communityDetails.imageTypesOnly"))
+      event.target.value = ""
+      return
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(t("communityDetails.imageMaxSize"))
+      event.target.value = ""
+      return
+    }
+
+    const accessToken = resolveAccessToken(tokens?.accessToken)
+    if (!accessToken) {
+      toast.error(t("communityDetails.uploadLoginRequired"))
+      event.target.value = ""
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onloadend = () => setEditAdminPicturePreview(reader.result as string)
+    reader.readAsDataURL(file)
+
+    setIsUploadingEditAdminPicture(true)
+    try {
+      const preSign = await getPreSignUrl(file.name, accessToken)
+      await uploadFileToPresignUrl(preSign.data.url, file)
+      setEditAdminForm((prev) => ({ ...prev, profilePicture: preSign.data.key }))
+      toast.success(t("communityDetails.uploadSuccess"))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("communityDetails.uploadFailed")
+      toast.error(message)
+      setEditAdminPicturePreview(selectedAdmin?.profilePictureUrl || null)
+      setEditAdminForm((prev) => ({ ...prev, profilePicture: selectedAdmin?.profilePicture || "" }))
+    } finally {
+      setIsUploadingEditAdminPicture(false)
+    }
+  }
+
+  async function handleUpdateAdminDetails() {
+    const accessToken = resolveAccessToken(tokens?.accessToken)
+    if (!accessToken) {
+      toast.error(t("communityDetails.mustBeLoggedIn"))
+      return
+    }
+    if (!selectedAdmin) return
+
+    const fullName = editAdminForm.fullName.trim()
+    const email = editAdminForm.email.trim()
+    const mobileNumber = editAdminForm.mobileNumber.trim()
+    const housePlot = editAdminForm.housePlot.trim()
+
+    if (!fullName || !email || !mobileNumber || !housePlot) {
+      toast.error(t("communityDetails.inviteRequiredFields"))
+      return
+    }
+    if (!isValidEmail(email)) {
+      toast.error(t("communityDetails.invalidEmail"))
+      return
+    }
+    if (!/^03\d{9}$/.test(mobileNumber)) {
+      toast.error(t("communityDetails.mobileFormatInvalid"))
+      return
+    }
+
+    setIsUpdatingAdminDetails(true)
+    try {
+      const previousEmail = selectedAdmin.email.trim().toLowerCase()
+      const nextEmail = email.toLowerCase()
+
+      const response = await updateCommunityAdminDetail({
+        communityId,
+        id: editAdminForm.id || selectedAdmin.id,
+        fullName,
+        email,
+        mobileNumber,
+        housePlot,
+        profilePicture: editAdminForm.profilePicture,
+      }, accessToken)
+
+      toast.success(response.message || t("communityDetails.adminUpdateSuccess"))
+      await refreshAdmins(accessToken)
+
+      if (selectedAdmin.isJoined === false && previousEmail !== nextEmail) {
+        try {
+          await resendCommunityAdminInvite({ communityId, email }, accessToken)
+          toast.success(t("communityDetails.resendInviteSuccess"))
+        } catch (resendError) {
+          const resendMessage = resendError instanceof Error ? resendError.message : t("communityDetails.resendInviteFailed")
+          toast.error(resendMessage)
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("communityDetails.adminUpdateFailed")
+      toast.error(message)
+    } finally {
+      setIsUpdatingAdminDetails(false)
     }
   }
 
@@ -1200,12 +1355,24 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                         <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={admin.housePlot} isRTL={isRTL} />
                         <InfoRow icon={<User className="h-4 w-4" />} label={t("communityDetails.bio")} value={admin.bio} isRTL={isRTL} />
                       </div>
-                      {admin.isJoined !== false && (
-                        <div
-                          onClick={(event) => event.stopPropagation()}
-                          onKeyDown={(event) => event.stopPropagation()}
-                          className={cn("relative flex items-center justify-end pt-1", isRTL && "justify-start")}
-                        >
+                      <div
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                        className={cn("relative flex items-center justify-end gap-2 pt-1", isRTL && "justify-start")}
+                      >
+                        {admin.isJoined === false ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              void handleResendInvite(admin.email)
+                            }}
+                            disabled={isResendingInvite}
+                            className="h-9 rounded-xl px-3.5 text-xs font-semibold"
+                          >
+                            {isResendingInvite ? t("communityDetails.resendingInvite") : t("communityDetails.resendInvite")}
+                          </Button>
+                        ) : (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
@@ -1230,8 +1397,8 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1292,12 +1459,145 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                 </div>
               </div>
 
-              <div className="grid gap-2.5 lg:grid-cols-2">
-                <InfoRow icon={<Mail className="h-4 w-4" />} label={t("communityDetails.email")} value={selectedAdmin.email || "-"} isRTL={isRTL} />
-                <InfoRow icon={<Phone className="h-4 w-4" />} label={t("communityDetails.phone")} value={selectedAdmin.mobileNumber || "-"} isRTL={isRTL} />
-                <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("communityDetails.housePlot")} value={selectedAdmin.housePlot || "-"} isRTL={isRTL} />
-                <InfoRow icon={<User className="h-4 w-4" />} label={t("communityDetails.bio")} value={selectedAdmin.bio || "-"} isRTL={isRTL} />
+              <div className={cn("rounded-2xl border border-border/70 bg-background/45 p-4 sm:p-5", isRTL && "text-right")}>
+                <div className={cn("mb-4 flex items-start justify-between gap-3", isRTL && "flex-row-reverse")}>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">{t("communityDetails.updateAdminDetails")}</p>
+                    <p className="text-xs text-muted-foreground">{t("communityDetails.editAdminDetailsHint")}</p>
+                  </div>
+                  {isPendingSelectedAdmin ? (
+                    <Badge variant="outline" className="rounded-full border-amber-300/40 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                      {t("communityDetails.invitePending")}
+                    </Badge>
+                  ) : null}
+                </div>
+
+              <div className="grid gap-4 lg:grid-cols-12">
+                <div className="space-y-3 lg:col-span-8">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("communityDetails.fullName")}</label>
+                      <Input
+                        value={editAdminForm.fullName}
+                        onChange={(event) => setEditAdminForm((prev) => ({ ...prev, fullName: event.target.value }))}
+                        placeholder={t("communityDetails.fullNamePlaceholder")}
+                        className="h-11 rounded-xl border-border/70 bg-background/80"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("communityDetails.email")}</label>
+                      <Input
+                        type="email"
+                        value={editAdminForm.email}
+                        onChange={(event) => setEditAdminForm((prev) => ({ ...prev, email: event.target.value }))}
+                        placeholder={t("communityDetails.emailPlaceholder")}
+                        className="h-11 rounded-xl border-border/70 bg-background/80"
+                      />
+                      {isPendingSelectedAdmin && hasSelectedAdminEmailChanged ? (
+                        <p className="text-xs text-amber-700 dark:text-amber-300">{t("communityDetails.emailChangeResendHint")}</p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("communityDetails.mobileNumber")}</label>
+                      <Input
+                        value={editAdminForm.mobileNumber}
+                        onChange={(event) => setEditAdminForm((prev) => ({ ...prev, mobileNumber: event.target.value }))}
+                        placeholder="03XXXXXXXXX"
+                        className="h-11 rounded-xl border-border/70 bg-background/80"
+                      />
+                      <p className="text-xs text-muted-foreground">{t("communityDetails.mobileNumberHint")}</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("communityDetails.housePlot")}</label>
+                      <Input
+                        value={editAdminForm.housePlot}
+                        onChange={(event) => setEditAdminForm((prev) => ({ ...prev, housePlot: event.target.value }))}
+                        placeholder={t("communityDetails.housePlotPlaceholder")}
+                        className="h-11 rounded-xl border-border/70 bg-background/80"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-4">
+                  <div className="rounded-xl border border-border/70 bg-background/70 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("communityDetails.profilePicture")}</p>
+                    {editAdminPicturePreview ? (
+                      <div className="relative h-[164px] overflow-hidden rounded-lg">
+                        <div
+                          className="flex h-full w-full cursor-zoom-in items-center justify-center bg-muted/35 p-2"
+                          onClick={() =>
+                            openMediaViewer(
+                              editAdminPicturePreview,
+                              editAdminForm.fullName || t("communityDetails.adminPhoto"),
+                            )
+                          }
+                        >
+                          <img src={editAdminPicturePreview} alt={t("communityDetails.adminPhoto")} className="max-h-full max-w-full object-contain" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-[164px] items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
+                        {t("communityDetails.noPhotoUploaded")}
+                      </div>
+                    )}
+
+                    <label className="mt-3 flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground hover:bg-background">
+                      {isUploadingEditAdminPicture ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {t("communityDetails.loading")}
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4" />
+                          {t("communityDetails.uploadProfilePicture")}
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept=".png,.jpeg,.jpg,.webp"
+                        className="hidden"
+                        onChange={handleEditAdminPictureUpload}
+                        disabled={isUploadingEditAdminPicture}
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsAdminDetailsOpen(false)
+                    setSelectedAdmin(null)
+                  }}
+                  disabled={isUpdatingAdminDetails}
+                >
+                  {t("communityDetails.cancel")}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleUpdateAdminDetails}
+                  disabled={!hasAdminFormChanges || !isAdminFormReadyToSubmit || isUpdatingAdminDetails || isUploadingEditAdminPicture}
+                  className="bg-accent text-accent-foreground hover:bg-accent/90"
+                >
+                  {isUpdatingAdminDetails ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t("communityDetails.updatingAdminDetails")}
+                    </>
+                  ) : (
+                    t("communityDetails.updateAdminDetails")
+                  )}
+                </Button>
+              </DialogFooter>
             </div>
           ) : null}
         </DialogContent>
