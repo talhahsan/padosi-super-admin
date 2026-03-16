@@ -244,6 +244,16 @@ export interface InviteCommunityAdminPayload {
   profilePicture: string
 }
 
+export interface UpdateCommunityAdminDetailPayload {
+  communityId: string
+  id: string
+  fullName: string
+  email: string
+  mobileNumber: string
+  housePlot: string
+  profilePicture: string
+}
+
 export interface UpdateCommunityStatusPayload {
   communityId: string
   status: "ACTIVE" | "INACTIVE"
@@ -639,6 +649,17 @@ export async function resendCommunityAdminInvite(
 ): Promise<ApiResponse<unknown>> {
   return request<ApiResponse<unknown>>("/community/resend-admin-invite", {
     method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateCommunityAdminDetail(
+  payload: UpdateCommunityAdminDetailPayload,
+  token: string,
+): Promise<ApiResponse<CommunityAdminDetails>> {
+  return request<ApiResponse<CommunityAdminDetails>>("/community/update-admin-detail", {
+    method: "PUT",
     token,
     body: JSON.stringify(payload),
   })
