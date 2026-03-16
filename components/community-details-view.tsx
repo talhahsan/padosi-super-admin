@@ -605,7 +605,9 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
       }, accessToken)
 
       toast.success(response.message || t("communityDetails.adminUpdateSuccess"))
-      await refreshAdmins(accessToken)
+      await Promise.all([refreshAdmins(accessToken), refreshUsers(accessToken)])
+      setIsAdminDetailsOpen(false)
+      setSelectedAdmin(null)
 
       if (selectedAdmin.isJoined === false && previousEmail !== nextEmail) {
         try {
