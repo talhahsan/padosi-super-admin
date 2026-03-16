@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils"
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const COMMUNITY_DETAILS_CACHE_KEY = "padosi_selected_community"
+const ADMIN_NAME_PATTERN = /^[A-Za-z ]+$/
 
 function isValidEmail(email: string): boolean {
   return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)
@@ -77,7 +78,7 @@ export function CommunityCreateForm() {
     /^\d+$/.test(formData.totalUnits.trim()) && Number(formData.totalUnits.trim()) > 0,
     formData.address.trim().length > 0,
     formData.city.trim().length > 0,
-    formData.adminName.trim().length > 0,
+    formData.adminName.trim().length > 0 && ADMIN_NAME_PATTERN.test(formData.adminName.trim()),
     isValidEmail(formData.adminEmail.trim()),
     formData.adminHousePlot.trim().length > 0,
     /^03\d{9}$/.test(formData.adminPhoneNumber.trim()),
@@ -93,7 +94,8 @@ export function CommunityCreateForm() {
   }, [isAuthenticated, router])
 
   function updateField(field: keyof FormData, value: string) {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    const nextValue = field === "adminName" ? value.replace(/[^A-Za-z ]/g, "") : value
+    setFormData((prev) => ({ ...prev, [field]: nextValue }))
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }))
     }
@@ -202,7 +204,11 @@ export function CommunityCreateForm() {
     }
     if (!formData.address.trim()) newErrors.address = t("createCommunity.validationAddress")
     if (!formData.city.trim()) newErrors.city = t("createCommunity.validationCity")
-    if (!formData.adminName.trim()) newErrors.adminName = t("createCommunity.validationAdminName")
+    if (!formData.adminName.trim()) {
+      newErrors.adminName = t("createCommunity.validationAdminName")
+    } else if (!ADMIN_NAME_PATTERN.test(formData.adminName.trim())) {
+      newErrors.adminName = t("createCommunity.validationAdminNameFormat")
+    }
     if (!formData.adminEmail.trim()) {
       newErrors.adminEmail = t("createCommunity.validationAdminEmailRequired")
     } else if (!isValidEmail(formData.adminEmail)) {
