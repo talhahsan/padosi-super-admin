@@ -430,6 +430,16 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
   )
 
   const filteredUsers = users
+  const adminUserIds = useMemo(() => {
+    return new Set(admins.map((admin) => admin.id).filter((id): id is string => Boolean(id)))
+  }, [admins])
+  const adminEmails = useMemo(() => {
+    return new Set(
+      admins
+        .map((admin) => admin.email?.trim().toLowerCase())
+        .filter((email): email is string => Boolean(email)),
+    )
+  }, [admins])
 
   const communityMeta = useMemo(() => {
     if (!community) return []
@@ -1964,6 +1974,8 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                 const memberProfilePicture = member.profilePictureUrl
                 const isUserInactive = Boolean(member.isDeleted)
                 const isUserStatusChanging = statusChangingUserId === member.id
+                const normalizedMemberEmail = member.email?.trim().toLowerCase() || ""
+                const isCommunityAdminUser = adminUserIds.has(member.id) || (normalizedMemberEmail ? adminEmails.has(normalizedMemberEmail) : false)
 
                 return (
                   <div
@@ -2041,59 +2053,70 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                           onKeyDown={(event) => event.stopPropagation()}
                           className={cn("grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-[auto_auto_auto]", isRTL && "lg:[direction:ltr]")}
                         >
-                          <Button
-                            size="sm"
-                            disabled={assigningUserId === member.id}
-                            onClick={() => handleAssignAdmin(member.id)}
-                            className="h-10 rounded-2xl border border-secondary/35 bg-gradient-to-r from-secondary to-accent px-4 text-xs font-semibold tracking-[0.01em] text-secondary-foreground shadow-[0_14px_28px_-16px_rgba(0,0,0,0.55)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-105 hover:shadow-[0_18px_34px_-16px_rgba(0,0,0,0.7)] active:translate-y-0"
-                          >
-                            {assigningUserId === member.id ? t("communityDetails.assigning") : t("communityDetails.assignAsAdmin")}
-                          </Button>
-                          <div
-                            className={cn(
-                              "inline-flex h-10 items-center justify-between gap-2 rounded-2xl border border-border/70 bg-muted/55 px-4 text-xs font-semibold text-foreground shadow-sm sm:min-w-[180px]",
-                              isRTL && "flex-row-reverse",
-                            )}
-                          >
-                            <span className="text-foreground">
-                              {isUserInactive ? t("communityDetails.statusInactive") : t("communityDetails.statusActive")}
-                            </span>
-                            <div className={cn("inline-flex items-center gap-2", isRTL && "flex-row-reverse")}>
-                              <Switch
-                                checked={!isUserInactive}
-                                disabled={isUserStatusChanging}
-                                onCheckedChange={() => handleToggleUserStatus(member.id)}
-                                aria-label={t("communityDetails.toggleUserStatus")}
-                                className="h-7 w-12 border border-border/70 data-[state=checked]:bg-secondary data-[state=unchecked]:bg-muted [&>span]:h-6 [&>span]:w-6"
-                              />
-                              {isUserStatusChanging ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : null}
+                          {!isCommunityAdminUser ? (
+                            <Button
+                              size="sm"
+                              disabled={assigningUserId === member.id}
+                              onClick={() => handleAssignAdmin(member.id)}
+                              className="h-10 rounded-2xl border border-secondary/35 bg-gradient-to-r from-secondary to-accent px-4 text-xs font-semibold tracking-[0.01em] text-secondary-foreground shadow-[0_14px_28px_-16px_rgba(0,0,0,0.55)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-105 hover:shadow-[0_18px_34px_-16px_rgba(0,0,0,0.7)] active:translate-y-0"
+                            >
+                              {assigningUserId === member.id ? t("communityDetails.assigning") : t("communityDetails.assignAsAdmin")}
+                            </Button>
+                          ) : null}
+                          {!isCommunityAdminUser ? (
+                            <div
+                              className={cn(
+                                "inline-flex h-10 items-center justify-between gap-2 rounded-2xl border border-border/70 bg-muted/55 px-4 text-xs font-semibold text-foreground shadow-sm sm:min-w-[180px]",
+                                isRTL && "flex-row-reverse",
+                              )}
+                            >
+                              <span className="text-foreground">
+                                {isUserInactive ? t("communityDetails.statusInactive") : t("communityDetails.statusActive")}
+                              </span>
+                              <div className={cn("inline-flex items-center gap-2", isRTL && "flex-row-reverse")}>
+                                <Switch
+                                  checked={!isUserInactive}
+                                  disabled={isUserStatusChanging}
+                                  onCheckedChange={() => handleToggleUserStatus(member.id)}
+                                  aria-label={t("communityDetails.toggleUserStatus")}
+                                  className="h-7 w-12 border border-border/70 data-[state=checked]:bg-secondary data-[state=unchecked]:bg-muted [&>span]:h-6 [&>span]:w-6"
+                                />
+                                {isUserStatusChanging ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" /> : null}
+                              </div>
                             </div>
-                          </div>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                disabled={deletingUserId === member.id}
-                                className="h-10 rounded-2xl border border-destructive/30 bg-destructive px-4 text-xs font-semibold tracking-[0.01em] text-destructive-foreground shadow-[0_14px_26px_-16px_rgba(220,38,38,0.8)] transition-all duration-200 hover:-translate-y-[1px] hover:bg-destructive/90 hover:shadow-[0_18px_32px_-16px_rgba(220,38,38,0.95)] active:translate-y-0"
-                              >
-                                {deletingUserId === member.id ? t("communityDetails.deletingUser") : t("communityDetails.deleteUser")}
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>{t("communityDetails.deleteUserDialogTitle")}</AlertDialogTitle>
-                                <AlertDialogDescription>{t("communityDetails.deleteUserDialogDescription")}</AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>{t("communityDetails.cancel")}</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeleteUser(member.id)}>
-                                  {t("communityDetails.delete")}
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                          ) : null}
+                          {!isCommunityAdminUser ? (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  disabled={deletingUserId === member.id}
+                                  className="h-10 rounded-2xl border border-destructive/30 bg-destructive px-4 text-xs font-semibold tracking-[0.01em] text-destructive-foreground shadow-[0_14px_26px_-16px_rgba(220,38,38,0.8)] transition-all duration-200 hover:-translate-y-[1px] hover:bg-destructive/90 hover:shadow-[0_18px_32px_-16px_rgba(220,38,38,0.95)] active:translate-y-0"
+                                >
+                                  {deletingUserId === member.id ? t("communityDetails.deletingUser") : t("communityDetails.deleteUser")}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>{t("communityDetails.deleteUserDialogTitle")}</AlertDialogTitle>
+                                  <AlertDialogDescription>{t("communityDetails.deleteUserDialogDescription")}</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>{t("communityDetails.cancel")}</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeleteUser(member.id)}>
+                                    {t("communityDetails.delete")}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          ) : null}
                         </div>
+                        {isCommunityAdminUser ? (
+                          <div className="rounded-2xl border border-amber-300/60 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                            {t("communityDetails.adminUserActionsHiddenHint")}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 
