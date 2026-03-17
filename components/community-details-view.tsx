@@ -405,8 +405,8 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     }
   }, [selectedUser, users])
 
-  const hasAssignedAdmin = admins.length > 0
   const isPendingSelectedAdmin = selectedAdmin?.isJoined === false
+  const canRemoveAdmin = admins.length > 1
   const normalizedAdminEmail = editAdminForm.email.trim().toLowerCase()
   const hasSelectedAdminEmailChanged = Boolean(
     selectedAdmin && normalizedAdminEmail !== selectedAdmin.email.trim().toLowerCase(),
@@ -1374,7 +1374,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                           >
                             {isResendingInvite ? t("communityDetails.resendingInvite") : t("communityDetails.resendInvite")}
                           </Button>
-                        ) : (
+                        ) : canRemoveAdmin ? (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
@@ -1399,7 +1399,8 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
-                        )}
+                        ) : null
+                        }
                       </div>
                     </div>
                   ))}
@@ -1783,7 +1784,6 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
         </DialogContent>
       </Dialog>
 
-      {!hasAssignedAdmin && (
       <Card className="group relative overflow-hidden rounded-3xl border border-border/75 bg-card/95 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.62)] transition-all duration-300 hover:border-secondary/35 hover:shadow-[0_24px_52px_-24px_rgba(0,0,0,0.7)] animate-slide-up stagger-3">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_90%_at_0%_0%,rgba(255,255,255,0.10),rgba(255,255,255,0)_60%)]" />
           <CardContent className="p-5 sm:p-6">
@@ -1924,7 +1924,6 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
 
           </CardContent>
       </Card>
-      )}
 
       <Card className="group relative overflow-hidden rounded-3xl border border-border/75 bg-card/95 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.62)] transition-all duration-300 hover:border-secondary/35 hover:shadow-[0_24px_52px_-24px_rgba(0,0,0,0.7)] animate-slide-up stagger-4">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_90%_at_0%_0%,rgba(255,255,255,0.10),rgba(255,255,255,0)_60%)]" />
@@ -2042,16 +2041,14 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                           onKeyDown={(event) => event.stopPropagation()}
                           className={cn("grid w-full gap-2 sm:grid-cols-2 lg:w-auto lg:grid-cols-[auto_auto_auto]", isRTL && "lg:[direction:ltr]")}
                         >
-                          {!hasAssignedAdmin && (
-                            <Button
-                              size="sm"
-                              disabled={assigningUserId === member.id}
-                              onClick={() => handleAssignAdmin(member.id)}
-                              className="h-10 rounded-2xl border border-secondary/35 bg-gradient-to-r from-secondary to-accent px-4 text-xs font-semibold tracking-[0.01em] text-secondary-foreground shadow-[0_14px_28px_-16px_rgba(0,0,0,0.55)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-105 hover:shadow-[0_18px_34px_-16px_rgba(0,0,0,0.7)] active:translate-y-0"
-                            >
-                              {assigningUserId === member.id ? t("communityDetails.assigning") : t("communityDetails.assignAsAdmin")}
-                            </Button>
-                          )}
+                          <Button
+                            size="sm"
+                            disabled={assigningUserId === member.id}
+                            onClick={() => handleAssignAdmin(member.id)}
+                            className="h-10 rounded-2xl border border-secondary/35 bg-gradient-to-r from-secondary to-accent px-4 text-xs font-semibold tracking-[0.01em] text-secondary-foreground shadow-[0_14px_28px_-16px_rgba(0,0,0,0.55)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-105 hover:shadow-[0_18px_34px_-16px_rgba(0,0,0,0.7)] active:translate-y-0"
+                          >
+                            {assigningUserId === member.id ? t("communityDetails.assigning") : t("communityDetails.assignAsAdmin")}
+                          </Button>
                           <div
                             className={cn(
                               "inline-flex h-10 items-center justify-between gap-2 rounded-2xl border border-border/70 bg-muted/55 px-4 text-xs font-semibold text-foreground shadow-sm sm:min-w-[180px]",
