@@ -55,6 +55,8 @@ import { useLocale } from "@/lib/locale-context"
 import { cn } from "@/lib/utils"
 
 const COMMUNITY_DETAILS_CACHE_KEY = "padosi_selected_community"
+const COMMUNITY_USERS_CACHE_KEY_PREFIX = "padosi_cached_community_users"
+const EXECUTIVE_MEMBERS_CACHE_KEY_PREFIX = "padosi_cached_executive_members"
 const USERS_LIMIT = 10
 const EXECUTIVE_MEMBERS_LIMIT = 10
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
@@ -91,6 +93,62 @@ function readCachedCommunity(communityId: string): Community | null {
   }
 
   return null
+}
+
+function getCommunityUsersCacheKey(communityId: string) {
+  return `${COMMUNITY_USERS_CACHE_KEY_PREFIX}:${communityId}`
+}
+
+function readCachedCommunityUsers(communityId: string): { users: CommunityUser[]; nextCursor: string | null } | null {
+  if (typeof window === "undefined") return null
+
+  try {
+    const raw = sessionStorage.getItem(getCommunityUsersCacheKey(communityId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { users?: unknown; nextCursor?: unknown }
+    if (!Array.isArray(parsed.users)) return null
+    return {
+      users: parsed.users as CommunityUser[],
+      nextCursor: typeof parsed.nextCursor === "string" ? parsed.nextCursor : null,
+    }
+  } catch {
+    sessionStorage.removeItem(getCommunityUsersCacheKey(communityId))
+    return null
+  }
+}
+
+function getExecutiveMembersCacheKey(communityId: string) {
+  return `${EXECUTIVE_MEMBERS_CACHE_KEY_PREFIX}:${communityId}`
+}
+
+function readCachedExecutiveMembers(communityId: string): {
+  members: ExecutiveMember[]
+  nextCursor: string | null
+  status: string | null
+  rejectionReason: string | null
+} | null {
+  if (typeof window === "undefined") return null
+
+  try {
+    const raw = sessionStorage.getItem(getExecutiveMembersCacheKey(communityId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as {
+      members?: unknown
+      nextCursor?: unknown
+      status?: unknown
+      rejectionReason?: unknown
+    }
+    if (!Array.isArray(parsed.members)) return null
+    return {
+      members: parsed.members as ExecutiveMember[],
+      nextCursor: typeof parsed.nextCursor === "string" ? parsed.nextCursor : null,
+      status: typeof parsed.status === "string" ? parsed.status : null,
+      rejectionReason: typeof parsed.rejectionReason === "string" ? parsed.rejectionReason : null,
+    }
+  } catch {
+    sessionStorage.removeItem(getExecutiveMembersCacheKey(communityId))
+    return null
+  }
 }
 
 function getStatusColor(status: string) {
@@ -259,6 +317,16 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     if (isCancelled?.()) return
     setUsers(response.data ?? [])
     setUsersNextCursor(response.pagination?.nextCursor || null)
+    if (!debouncedUsernameSearch && typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(getCommunityUsersCacheKey(communityId), JSON.stringify({
+          users: response.data ?? [],
+          nextCursor: response.pagination?.nextCursor || null,
+        }))
+      } catch {
+        // no-op
+      }
+    }
   }
 
   async function refreshCommunityUsersAndExecutiveMembers(accessToken: string, isCancelled?: () => boolean) {
@@ -279,6 +347,18 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     setExecutiveNextCursor(response.pagination?.nextCursor || null)
     setExecutiveStatus(response.meta?.status ?? null)
     setExecutiveRejectionReason(response.meta?.rejectionReason ?? null)
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(getExecutiveMembersCacheKey(communityId), JSON.stringify({
+          members: response.data ?? [],
+          nextCursor: response.pagination?.nextCursor || null,
+          status: response.meta?.status ?? null,
+          rejectionReason: response.meta?.rejectionReason ?? null,
+        }))
+      } catch {
+        // no-op
+      }
+    }
   }
 
   useEffect(() => {
@@ -322,8 +402,17 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     const accessToken = resolveAccessToken(tokens?.accessToken)
     if (!accessToken) return
 
+    const cachedExecutiveMembers = readCachedExecutiveMembers(communityId)
     let cancelled = false
-    setIsLoadingExecutiveMembers(true)
+    if (cachedExecutiveMembers) {
+      setExecutiveMembers(cachedExecutiveMembers.members)
+      setExecutiveNextCursor(cachedExecutiveMembers.nextCursor)
+      setExecutiveStatus(cachedExecutiveMembers.status)
+      setExecutiveRejectionReason(cachedExecutiveMembers.rejectionReason)
+      setIsLoadingExecutiveMembers(false)
+    } else {
+      setIsLoadingExecutiveMembers(true)
+    }
 
     refreshExecutiveMembers(accessToken, () => cancelled)
       .catch((error) => {
@@ -354,8 +443,21 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     const accessToken = resolveAccessToken(tokens?.accessToken)
     if (!accessToken) return
 
+    const useUsersCache = !debouncedUsernameSearch
+    if (useUsersCache) {
+      const cachedUsers = readCachedCommunityUsers(communityId)
+      if (cachedUsers) {
+        setUsers(cachedUsers.users)
+        setUsersNextCursor(cachedUsers.nextCursor)
+        setIsLoadingUsers(false)
+      } else {
+        setIsLoadingUsers(true)
+      }
+    } else {
+      setIsLoadingUsers(true)
+    }
+
     let cancelled = false
-    setIsLoadingUsers(true)
 
     refreshUsers(accessToken, () => cancelled)
       .catch((error) => {
