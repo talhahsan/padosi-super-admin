@@ -783,6 +783,17 @@ export async function fetchExecutiveMembers(params: {
   }
 }
 
+export async function unassignExecutiveRole(
+  assignmentId: string,
+  token: string,
+): Promise<ApiResponse<unknown>> {
+  const query = new URLSearchParams({ assignmentId })
+  return request<ApiResponse<unknown>>(`/community/role-assignment?${query.toString()}`, {
+    method: "DELETE",
+    token,
+  })
+}
+
 export async function toggleCommunityUserStatus(
   userId: string,
   token: string,
