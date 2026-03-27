@@ -39,6 +39,7 @@ import {
   inviteCommunityAdmin,
   removeCommunityAdmin,
   resendCommunityAdminInvite,
+  unassignExecutiveRole,
   updateCommunityAdminDetail,
   deleteFileByName,
   deleteCommunity,
@@ -209,6 +210,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
   const [executiveNextCursor, setExecutiveNextCursor] = useState<string | null>(null)
   const [executiveStatus, setExecutiveStatus] = useState<string | null>(null)
   const [executiveRejectionReason, setExecutiveRejectionReason] = useState<string | null>(null)
+  const [unassigningExecutiveAssignmentId, setUnassigningExecutiveAssignmentId] = useState<string | null>(null)
   const [isLoadingExecutiveMembers, setIsLoadingExecutiveMembers] = useState(true)
   const [isLoadingMoreExecutiveMembers, setIsLoadingMoreExecutiveMembers] = useState(false)
   const [users, setUsers] = useState<CommunityUser[]>([])
@@ -257,6 +259,13 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     if (isCancelled?.()) return
     setUsers(response.data ?? [])
     setUsersNextCursor(response.pagination?.nextCursor || null)
+  }
+
+  async function refreshCommunityUsersAndExecutiveMembers(accessToken: string, isCancelled?: () => boolean) {
+    await Promise.all([
+      refreshUsers(accessToken, isCancelled),
+      refreshExecutiveMembers(accessToken, isCancelled),
+    ])
   }
 
   async function refreshExecutiveMembers(accessToken: string, isCancelled?: () => boolean) {
@@ -693,6 +702,28 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     }
   }
 
+  async function handleUnassignExecutive(assignmentId: string) {
+    const accessToken = resolveAccessToken(tokens?.accessToken)
+    if (!accessToken) {
+      toast.error(t("communityDetails.mustBeLoggedIn"))
+      return
+    }
+
+    setUnassigningExecutiveAssignmentId(assignmentId)
+    try {
+      const response = await unassignExecutiveRole(assignmentId, accessToken)
+      toast.success(response.message || t("communityDetails.unassignExecutiveSuccess"))
+      await refreshCommunityUsersAndExecutiveMembers(accessToken)
+      setIsExecutiveDetailsOpen(false)
+      setSelectedExecutive(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("communityDetails.unassignExecutiveFailed")
+      toast.error(message)
+    } finally {
+      setUnassigningExecutiveAssignmentId(null)
+    }
+  }
+
   async function handleAssignAdmin(userId: string) {
     const accessToken = resolveAccessToken(tokens?.accessToken)
     if (!accessToken) {
@@ -757,7 +788,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     try {
       const response = await toggleCommunityUserStatus(userId, accessToken)
       toast.success(response.message || t("communityDetails.userStatusUpdateSuccess"))
-      await refreshUsers(accessToken)
+      await refreshCommunityUsersAndExecutiveMembers(accessToken)
     } catch (error) {
       const message = error instanceof Error ? error.message : t("communityDetails.userStatusUpdateFailed")
       toast.error(message)
@@ -777,7 +808,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     try {
       const response = await deleteCommunityUser(userId, accessToken)
       toast.success(response.message || t("communityDetails.userDeleteSuccess"))
-      await refreshUsers(accessToken)
+      await refreshCommunityUsersAndExecutiveMembers(accessToken)
     } catch (error) {
       const message = error instanceof Error ? error.message : t("communityDetails.userDeleteFailed")
       toast.error(message)
@@ -1789,6 +1820,42 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
                   isRTL={isRTL}
                 />
               </div>
+
+              <DialogFooter className={cn("pt-1", isRTL && "sm:justify-start")}>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={unassigningExecutiveAssignmentId === selectedExecutive.assignmentId}
+                    >
+                      {unassigningExecutiveAssignmentId === selectedExecutive.assignmentId ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {t("communityDetails.unassigningExecutive")}
+                        </>
+                      ) : (
+                        t("communityDetails.unassignExecutive")
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{t("communityDetails.unassignExecutiveDialogTitle")}</AlertDialogTitle>
+                      <AlertDialogDescription>{t("communityDetails.unassignExecutiveDialogDescription")}</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>{t("communityDetails.cancel")}</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleUnassignExecutive(selectedExecutive.assignmentId)}
+                        disabled={unassigningExecutiveAssignmentId === selectedExecutive.assignmentId}
+                      >
+                        {t("communityDetails.unassignExecutive")}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </DialogFooter>
             </div>
           ) : null}
         </DialogContent>
