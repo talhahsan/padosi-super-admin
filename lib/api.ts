@@ -248,10 +248,10 @@ export interface UpdateCommunityAdminDetailPayload {
   communityId: string
   id: string
   fullName: string
-  email: string
-  mobileNumber: string
+  email?: string
+  mobileNumber?: string
   housePlot: string
-  profilePicture: string
+  profilePicture?: string
 }
 
 export interface UpdateCommunityStatusPayload {
