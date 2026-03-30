@@ -519,8 +519,9 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
   const isPendingSelectedAdmin = selectedAdmin?.isJoined === false
   const canRemoveAdmin = admins.length > 1
   const normalizedAdminEmail = editAdminForm.email.trim().toLowerCase()
+  const normalizedSelectedAdminEmail = (selectedAdmin?.email || "").trim().toLowerCase()
   const hasSelectedAdminEmailChanged = Boolean(
-    selectedAdmin && normalizedAdminEmail !== selectedAdmin.email.trim().toLowerCase(),
+    selectedAdmin && normalizedAdminEmail !== normalizedSelectedAdminEmail,
   )
   const hasAdminFormChanges = Boolean(
     selectedAdmin && (
@@ -712,7 +713,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
 
     setIsUpdatingAdminDetails(true)
     try {
-      const previousEmail = selectedAdmin.email.trim().toLowerCase()
+      const previousEmail = (selectedAdmin.email || "").trim().toLowerCase()
       const nextEmail = email.toLowerCase()
 
       const response = await updateCommunityAdminDetail({
