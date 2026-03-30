@@ -532,13 +532,23 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
       editAdminForm.profilePicture !== (selectedAdmin.profilePicture || "")
     ),
   )
+  const trimmedAdminEmail = editAdminForm.email.trim()
+  const trimmedAdminMobileNumber = editAdminForm.mobileNumber.trim()
+  const hadAdminEmail = Boolean((selectedAdmin?.email || "").trim())
+  const hadAdminMobileNumber = Boolean((selectedAdmin?.mobileNumber || "").trim())
+  const hasAtLeastOneAdminContact = Boolean(trimmedAdminEmail || trimmedAdminMobileNumber)
+  const isAdminContactRuleSatisfied = (
+    (hadAdminEmail && hadAdminMobileNumber && Boolean(trimmedAdminEmail && trimmedAdminMobileNumber)) ||
+    (hadAdminEmail && !hadAdminMobileNumber && Boolean(trimmedAdminEmail)) ||
+    (!hadAdminEmail && hadAdminMobileNumber && Boolean(trimmedAdminMobileNumber)) ||
+    (!hadAdminEmail && !hadAdminMobileNumber && hasAtLeastOneAdminContact)
+  )
   const isAdminFormReadyToSubmit = Boolean(
     editAdminForm.fullName.trim() &&
-    editAdminForm.email.trim() &&
-    editAdminForm.mobileNumber.trim() &&
     editAdminForm.housePlot.trim() &&
-    isValidEmail(editAdminForm.email.trim()) &&
-    /^03\d{9}$/.test(editAdminForm.mobileNumber.trim()),
+    isAdminContactRuleSatisfied &&
+    (!trimmedAdminEmail || isValidEmail(trimmedAdminEmail)) &&
+    (!trimmedAdminMobileNumber || /^03\d{9}$/.test(trimmedAdminMobileNumber)),
   )
 
   const filteredUsers = users
@@ -697,16 +707,28 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
     const email = editAdminForm.email.trim()
     const mobileNumber = editAdminForm.mobileNumber.trim()
     const housePlot = editAdminForm.housePlot.trim()
+    const hadEmail = Boolean((selectedAdmin.email || "").trim())
+    const hadMobileNumber = Boolean((selectedAdmin.mobileNumber || "").trim())
+    const isContactRuleSatisfied = (
+      (hadEmail && hadMobileNumber && Boolean(email && mobileNumber)) ||
+      (hadEmail && !hadMobileNumber && Boolean(email)) ||
+      (!hadEmail && hadMobileNumber && Boolean(mobileNumber)) ||
+      (!hadEmail && !hadMobileNumber && Boolean(email || mobileNumber))
+    )
 
-    if (!fullName || !email || !mobileNumber || !housePlot) {
+    if (!fullName || !housePlot) {
       toast.error(t("communityDetails.inviteRequiredFields"))
       return
     }
-    if (!isValidEmail(email)) {
+    if (!isContactRuleSatisfied) {
+      toast.error(t("communityDetails.adminContactRequired"))
+      return
+    }
+    if (email && !isValidEmail(email)) {
       toast.error(t("communityDetails.invalidEmail"))
       return
     }
-    if (!/^03\d{9}$/.test(mobileNumber)) {
+    if (mobileNumber && !/^03\d{9}$/.test(mobileNumber)) {
       toast.error(t("communityDetails.mobileFormatInvalid"))
       return
     }
@@ -720,10 +742,10 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
         communityId,
         id: editAdminForm.id || selectedAdmin.id,
         fullName,
-        email,
-        mobileNumber,
         housePlot,
-        profilePicture: editAdminForm.profilePicture,
+        ...(email ? { email } : {}),
+        ...(mobileNumber ? { mobileNumber } : {}),
+        ...(editAdminForm.profilePicture ? { profilePicture: editAdminForm.profilePicture } : {}),
       }, accessToken)
 
       toast.success(response.message || t("communityDetails.adminUpdateSuccess"))
@@ -731,7 +753,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
       setIsAdminDetailsOpen(false)
       setSelectedAdmin(null)
 
-      if (selectedAdmin.isJoined === false && previousEmail !== nextEmail) {
+      if (selectedAdmin.isJoined === false && nextEmail && previousEmail !== nextEmail) {
         try {
           await resendCommunityAdminInvite({ communityId, email }, accessToken)
           toast.success(t("communityDetails.resendInviteSuccess"))
