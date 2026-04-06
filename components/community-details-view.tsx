@@ -1589,7 +1589,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
           if (!open) setSelectedAdmin(null)
         }}
       >
-        <DialogContent className="max-w-3xl overflow-hidden border-border/60 bg-background/95 p-0">
+        <DialogContent className="max-w-3xl overflow-y-auto sm:overflow-hidden border-border/60 bg-background/95 p-0">
           <DialogHeader>
             <div className="border-b border-border/60 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(56,189,248,0.14),rgba(255,255,255,0)_62%)] px-5 py-4 sm:px-6">
               <DialogTitle>{t("communityDetails.adminDetailsTitle")}</DialogTitle>
@@ -1899,7 +1899,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
           if (!open) setSelectedExecutive(null)
         }}
       >
-        <DialogContent className="max-w-3xl overflow-hidden border-border/60 bg-background/95 p-0">
+        <DialogContent className="max-w-3xl overflow-y-auto sm:overflow-hidden border-border/60 bg-background/95 p-0">
           <DialogHeader>
             <div className="border-b border-border/60 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(56,189,248,0.14),rgba(255,255,255,0)_62%)] px-5 py-4 sm:px-6">
               <DialogTitle>{t("communityDetails.executiveDetailsTitle")}</DialogTitle>
@@ -2361,7 +2361,7 @@ export function CommunityDetailsView({ communityId }: { communityId: string }) {
           if (!open) setSelectedUser(null)
         }}
       >
-        <DialogContent className="max-w-3xl overflow-hidden border-border/60 bg-background/95 p-0">
+        <DialogContent className="max-w-3xl overflow-y-auto sm:overflow-hidden border-border/60 bg-background/95 p-0">
           <DialogHeader>
             <div className="border-b border-border/60 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(56,189,248,0.14),rgba(255,255,255,0)_62%)] px-5 py-4 sm:px-6">
               <DialogTitle>{t("communityDetails.userDetailsTitle")}</DialogTitle>
